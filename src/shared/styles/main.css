@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply text-slate-700 font-sans antialiased;
+    background-color: #f0faf8;
+    /* Soft teal/emerald gradient field that stays put while content scrolls. */
+    background-image:
+      radial-gradient(1100px 620px at 100% -8%, rgba(45, 212, 191, 0.22), transparent 60%),
+      radial-gradient(900px 520px at -8% 6%, rgba(16, 185, 129, 0.14), transparent 55%),
+      radial-gradient(760px 560px at 50% 118%, rgba(20, 184, 166, 0.12), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Typography hierarchy */
+  .text-heading {
+    @apply text-2xl font-bold tracking-tight text-slate-900;
+  }
+  .text-subheading {
+    @apply text-base font-semibold text-slate-900;
+  }
+  .text-body {
+    @apply text-sm text-slate-600;
+  }
+  .text-caption {
+    @apply text-xs text-slate-400;
+  }
+}
+
+@layer components {
+  /* Frosted-glass surface — the core of the new look (used by cards/panels). */
+  .surface {
+    @apply rounded-2xl border border-white/60 bg-white/70 shadow-glass backdrop-blur-xl;
+  }
+
+  /* Stronger glass for floating elements (modals, dropdowns, navbar). */
+  .glass {
+    @apply border border-white/60 bg-white/75 backdrop-blur-xl;
+  }
+  .glass-strong {
+    @apply border border-white/70 bg-white/85 backdrop-blur-2xl;
+  }
+
+  /* Brand gradient helpers. */
+  .bg-brand {
+    @apply bg-gradient-to-br from-primary-600 to-accent-600;
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent;
+  }
+
+  /* Focus ring used across inputs and buttons */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400;
+  }
+}
+
+/* Custom thin scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Subtle global transition for interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}

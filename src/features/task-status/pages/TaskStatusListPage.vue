@@ -9,6 +9,8 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ViewColumnsIcon,
+  ArrowsRightLeftIcon,
+  LockClosedIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
@@ -19,6 +21,7 @@ import BasePagination from '@/shared/components/base/BasePagination.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 import ConfirmDialog from '@/shared/components/base/ConfirmDialog.vue'
 import TaskStatusFormModal from '@/features/task-status/components/TaskStatusFormModal.vue'
+import TaskStatusTransitionModal from '@/features/task-status/components/TaskStatusTransitionModal.vue'
 
 const PAGE_SIZE = 10
 const DEBOUNCE_MS = 300
@@ -35,8 +38,14 @@ const columns = [
   { key: 'ordering', label: 'Order', width: '80px' },
   { key: 'name', label: 'Name' },
   { key: 'flags', label: 'Flags' },
+  { key: 'transitions', label: 'Bisa pindah ke' },
   { key: 'units', label: 'Units' },
 ]
+
+/** Outgoing transitions for a status row. */
+function activeTransitions(row) {
+  return row.transitionTo ?? []
+}
 
 function load() {
   return store
@@ -73,6 +82,20 @@ function openEdit(row) {
 
 function onSaved() {
   load()
+}
+
+// Transition manager (live-apply, per status)
+const transitionOpen = ref(false)
+const transitionStatus = ref(null)
+
+function openTransitions(row) {
+  transitionStatus.value = { id: row.id, name: row.name }
+  transitionOpen.value = true
+}
+
+function onTransitionToggle(open) {
+  transitionOpen.value = open
+  if (!open) load() // refresh so the "Bisa pindah ke" badges reflect edits
 }
 
 // Delete
@@ -160,6 +183,21 @@ onMounted(load)
             <span v-if="!row.isDefault && !row.isClosed" class="text-xs text-slate-400">—</span>
           </div>
         </template>
+        <template #cell-transitions="{ row }">
+          <div class="flex flex-wrap gap-1.5">
+            <BaseBadge
+              v-for="t in activeTransitions(row)"
+              :key="t.id"
+              :color="t.requireApproval ? 'warning' : 'info'"
+              size="sm"
+              :title="t.requireApproval ? 'Butuh approval' : 'Tanpa approval'"
+            >
+              <LockClosedIcon v-if="t.requireApproval" class="h-3 w-3" />
+              {{ t.toStatus?.name }}
+            </BaseBadge>
+            <span v-if="!activeTransitions(row).length" class="text-xs text-slate-400">—</span>
+          </div>
+        </template>
         <template #cell-units="{ row }">
           <div class="flex flex-wrap gap-1.5">
             <BaseBadge v-for="u in row.units" :key="u.id" color="info" size="sm">
@@ -170,6 +208,13 @@ onMounted(load)
         </template>
         <template #row-actions="{ row }">
           <div class="flex items-center justify-end gap-1">
+            <button
+              class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-primary-600"
+              title="Kelola transisi"
+              @click="openTransitions(row)"
+            >
+              <ArrowsRightLeftIcon class="h-4 w-4" />
+            </button>
             <button
               class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-primary-600"
               title="Edit"
@@ -200,6 +245,13 @@ onMounted(load)
 
     <!-- Create / Edit -->
     <TaskStatusFormModal v-model="modalOpen" :status-id="editingId" @saved="onSaved" />
+
+    <!-- Manage transitions (live). Reload on close so the list badges reflect changes. -->
+    <TaskStatusTransitionModal
+      :model-value="transitionOpen"
+      :status="transitionStatus"
+      @update:model-value="onTransitionToggle"
+    />
 
     <!-- Delete confirm -->
     <ConfirmDialog

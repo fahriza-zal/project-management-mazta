@@ -3,10 +3,16 @@ import { defineStore } from 'pinia'
 import { apolloClient } from '@/shared/graphql/apolloClient'
 import {
   LIST_TASK_STATUS,
+  LIST_TASK_STATUS_OPTIONS,
   GET_TASK_STATUS,
   CREATE_TASK_STATUS,
   EDIT_TASK_STATUS,
   DELETE_TASK_STATUS,
+  CREATE_TASK_STATUS_TRANSITION,
+  EDIT_TASK_STATUS_TRANSITION,
+  DELETE_TASK_STATUS_TRANSITION,
+  RESTORE_TASK_STATUS_TRANSITION,
+  ENUM_VALUES,
   LIST_UNIT,
   LIST_COMPANY,
 } from '@/features/task-status/graphql'
@@ -142,6 +148,83 @@ export const useTaskStatusStore = defineStore('taskStatus', () => {
     }
   }
 
+  /* --- Task Status Transitions (managed live in the transition modal) --- */
+
+  /** All task statuses (id + name) as candidate "move to" targets. */
+  async function fetchStatusOptions() {
+    const { data } = await apolloClient.query({
+      query: LIST_TASK_STATUS_OPTIONS,
+      variables: { params: { page: 1, pageSize: 100, search: null } },
+      fetchPolicy: 'network-only',
+    })
+    return data?.listTaskStatusDefinition?.data?.results ?? []
+  }
+
+  /**
+   * Create a transition.
+   * @param {{ fromStatusId, toStatusId, requireApproval, approvalType }} input
+   */
+  async function createTransition(input) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: CREATE_TASK_STATUS_TRANSITION,
+        variables: { input },
+      })
+      return data?.createTaskStatusTransition?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal menambah transisi.'))
+    }
+  }
+
+  /** Update a transition. Input matches createTransition. */
+  async function editTransition(id, input) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: EDIT_TASK_STATUS_TRANSITION,
+        variables: { editTaskStatusTransitionId: Number(id), input },
+      })
+      return data?.editTaskStatusTransition?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal memperbarui transisi.'))
+    }
+  }
+
+  /** Soft-delete a transition (hard is always false). */
+  async function deleteTransition(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: DELETE_TASK_STATUS_TRANSITION,
+        variables: { deleteTaskStatusTransitionId: Number(id), hard: false },
+      })
+      return data?.deleteTaskStatusTransition?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal menghapus transisi.'))
+    }
+  }
+
+  /** Restore a soft-deleted transition. */
+  async function restoreTransition(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: RESTORE_TASK_STATUS_TRANSITION,
+        variables: { restoreTaskStatusTransitionId: Number(id) },
+      })
+      return data?.restoreTaskStatusTransition?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal memulihkan transisi.'))
+    }
+  }
+
+  /** Fetch the values of a GraphQL enum by type name. Returns string[] (raw names). */
+  async function fetchEnumValues(name) {
+    const { data } = await apolloClient.query({
+      query: ENUM_VALUES,
+      variables: { name },
+      fetchPolicy: 'cache-first',
+    })
+    return (data?.__type?.enumValues ?? []).map((e) => e.name)
+  }
+
   /** Searchable unit options for the picker. Returns [{ id, name }]. */
   async function fetchUnitOptions(search) {
     const { data } = await apolloClient.query({
@@ -173,6 +256,12 @@ export const useTaskStatusStore = defineStore('taskStatus', () => {
     create,
     update,
     remove,
+    fetchStatusOptions,
+    createTransition,
+    editTransition,
+    deleteTransition,
+    restoreTransition,
+    fetchEnumValues,
     fetchUnitOptions,
     fetchCompanyOptions,
   }

@@ -86,7 +86,7 @@ const taskBreakdown = computed(() => {
   <div class="space-y-6">
     <!-- Header -->
     <div>
-      <h1 class="text-heading">Welcome back, {{ auth.profile?.name?.split(' ')[0] || 'there' }} 👋</h1>
+      <h1 class="text-heading">Welcome back, {{ auth.profile?.name?.split(' ')[0] || 'there' }}</h1>
       <p class="text-body mt-1">Here’s what’s happening across your projects today.</p>
     </div>
 

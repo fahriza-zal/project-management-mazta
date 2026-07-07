@@ -17,6 +17,7 @@ import {
   DELETE_MILESTONE,
   CREATE_TASK,
   EDIT_TASK,
+  UPDATE_TASK_STATUS,
   DELETE_TASK,
   LIST_UNIT,
   LIST_PROJECT_ROLE,
@@ -260,6 +261,32 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * Move a task to another status (Kanban drag & drop). Distinct from `updateTask`
+   * (which edits task fields via editTask); this hits the `updateTask` status mutation.
+   * @param {{ taskId, newStatusId, oldStatusId, employeeId }} params
+   *   `employeeId` = the employee assigned to the task (not the logged-in user).
+   * @returns updated `{ id, currentStatus }`
+   */
+  async function updateTaskStatus({ taskId, newStatusId, oldStatusId, employeeId }) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: UPDATE_TASK_STATUS,
+        variables: {
+          updateTaskId: Number(taskId),
+          input: {
+            newStatusId: newStatusId == null ? null : Number(newStatusId),
+            oldStatusId: oldStatusId == null ? null : Number(oldStatusId),
+            employeeId: employeeId == null ? null : Number(employeeId),
+          },
+        },
+      })
+      return data?.updateTask?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal memindahkan status task.'))
+    }
+  }
+
   /** Soft-delete a task by id (hard is always false). */
   async function deleteTask(id) {
     try {
@@ -376,6 +403,7 @@ export const useProjectStore = defineStore('project', () => {
     deleteMilestone,
     createTask,
     updateTask,
+    updateTaskStatus,
     deleteTask,
     fetchParentOptions,
     fetchUnitOptions,

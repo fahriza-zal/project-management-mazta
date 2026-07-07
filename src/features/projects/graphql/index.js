@@ -392,6 +392,26 @@ export const EDIT_TASK = gql`
 `
 
 /**
+ * Move a task to another status (used by the Kanban drag & drop). This is a distinct
+ * operation from EDIT_TASK: it takes an UpdateTaskInput of the status change, not TaskInput.
+ * Variables: { updateTaskId: Int!, input: UpdateTaskInput! } where input =
+ * { employeeId, newStatusId, oldStatusId }.
+ */
+export const UPDATE_TASK_STATUS = gql`
+  mutation UpdateTask($updateTaskId: Int!, $input: UpdateTaskInput!) {
+    updateTask(id: $updateTaskId, input: $input) {
+      data {
+        id
+        currentStatus {
+          id
+          name
+        }
+      }
+    }
+  }
+`
+
+/**
  * Delete a task. Variables: { deleteTaskId: Int!, hard: Boolean! }
  * (hard is always false — soft delete).
  */

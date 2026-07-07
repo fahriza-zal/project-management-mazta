@@ -27,13 +27,25 @@ export const LIST_TASK_STATUS = gql`
             id
             name
           }
+          transitionTo {
+            id
+            toStatus {
+              id
+              name
+            }
+            approvalType
+            requireApproval
+          }
         }
       }
     }
   }
 `
 
-/** Single task status definition by id. Variables: { getTaskStatusDefinitionId: Int! }. */
+/**
+ * Single task status definition by id. Variables: { getTaskStatusDefinitionId: Int! }.
+ * `transitionTo` powers the transition manager — it lists the statuses this one may move to.
+ */
 export const GET_TASK_STATUS = gql`
   query GetTaskStatusDefinition($getTaskStatusDefinitionId: Int!) {
     getTaskStatusDefinition(id: $getTaskStatusDefinitionId) {
@@ -44,6 +56,33 @@ export const GET_TASK_STATUS = gql`
         isClosed
         isDefault
         units {
+          id
+          name
+        }
+        transitionTo {
+          id
+          toStatus {
+            id
+            name
+          }
+          approvalType
+          requireApproval
+        }
+      }
+    }
+  }
+`
+
+/**
+ * Lightweight list of every task status (id + name only), used to populate the
+ * candidate "move to" targets in the transition manager. Big pageSize = fetch all.
+ * Variables: { params: TaskStatusDefinitionParams }.
+ */
+export const LIST_TASK_STATUS_OPTIONS = gql`
+  query ListTaskStatusOptions($params: TaskStatusDefinitionParams) {
+    listTaskStatusDefinition(params: $params) {
+      data {
+        results {
           id
           name
         }
@@ -70,7 +109,10 @@ export const CREATE_TASK_STATUS = gql`
 
 /** Update a task status definition. Variables: { editTaskStatusDefinitionId: Int!, input: TaskStatusDefinitionInput! }. */
 export const EDIT_TASK_STATUS = gql`
-  mutation EditTaskStatusDefinition($input: TaskStatusDefinitionInput!, $editTaskStatusDefinitionId: Int!) {
+  mutation EditTaskStatusDefinition(
+    $input: TaskStatusDefinitionInput!
+    $editTaskStatusDefinitionId: Int!
+  ) {
     editTaskStatusDefinition(input: $input, id: $editTaskStatusDefinitionId) {
       data {
         id
@@ -85,6 +127,74 @@ export const DELETE_TASK_STATUS = gql`
   mutation DeleteTaskStatusDefinition($deleteTaskStatusDefinitionId: Int!, $hard: Boolean!) {
     deleteTaskStatusDefinition(id: $deleteTaskStatusDefinitionId, hard: $hard) {
       data
+    }
+  }
+`
+
+/* -------------------------------------------------------------------------- */
+/* Task Status Transition — a directed (from → to) rule between two statuses.  */
+/* These are their own mutations (NOT part of createTaskStatusDefinition), so  */
+/* the transition manager applies each change live, per row.                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Create a transition. Variables: { input: TaskStatusTransitionInput! } where input =
+ * { fromStatusId, toStatusId, requireApproval, approvalType }.
+ */
+export const CREATE_TASK_STATUS_TRANSITION = gql`
+  mutation CreateTaskStatusTransition($input: TaskStatusTransitionInput!) {
+    createTaskStatusTransition(input: $input) {
+      data {
+        id
+      }
+    }
+  }
+`
+
+/** Update a transition. Variables: { editTaskStatusTransitionId: Int!, input: TaskStatusTransitionInput! }. */
+export const EDIT_TASK_STATUS_TRANSITION = gql`
+  mutation EditTaskStatusTransition(
+    $input: TaskStatusTransitionInput!
+    $editTaskStatusTransitionId: Int!
+  ) {
+    editTaskStatusTransition(input: $input, id: $editTaskStatusTransitionId) {
+      data {
+        id
+      }
+    }
+  }
+`
+
+/** Soft-delete a transition. Variables: { deleteTaskStatusTransitionId: Int!, hard: Boolean! } (hard is always false). */
+export const DELETE_TASK_STATUS_TRANSITION = gql`
+  mutation DeleteTaskStatusTransition($deleteTaskStatusTransitionId: Int!, $hard: Boolean!) {
+    deleteTaskStatusTransition(id: $deleteTaskStatusTransitionId, hard: $hard) {
+      data
+    }
+  }
+`
+
+/** Restore a soft-deleted transition. Variables: { restoreTaskStatusTransitionId: Int! }. */
+export const RESTORE_TASK_STATUS_TRANSITION = gql`
+  mutation RestoreTaskStatusTransition($restoreTaskStatusTransitionId: Int!) {
+    restoreTaskStatusTransition(id: $restoreTaskStatusTransitionId) {
+      data {
+        id
+      }
+    }
+  }
+`
+
+/**
+ * Introspect a GraphQL enum's values — used for the transition `approvalType` select
+ * (name: "ApprovalTypeChoices"). Variables: { name: String! }.
+ */
+export const ENUM_VALUES = gql`
+  query EnumValues($name: String!) {
+    __type(name: $name) {
+      enumValues {
+        name
+      }
     }
   }
 `

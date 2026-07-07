@@ -33,8 +33,12 @@ const milestones = computed(() =>
   (project.value?.milestones ?? []).map((m) => ({ id: m.id, name: m.name })),
 )
 
+// Apollo freezes query results (read-only). We keep a mutable deep copy so the
+// optimistic drag & drop can reassign a task's `currentStatus` in place.
+const clone = (v) => (v ? structuredClone(v) : v)
+
 async function reload() {
-  project.value = await projectStore.fetchProjectBoard(route.params.id)
+  project.value = clone(await projectStore.fetchProjectBoard(route.params.id))
 }
 
 /** Create a task directly in a column (its status). */
@@ -55,15 +59,32 @@ async function onCreate({ statusId, milestoneId, title }) {
   }
 }
 
-/** Move a task to another status. Optimistic; persistence needs a status mutation. */
-function onStatusChange(taskId, statusId) {
-  const col = columns.value.find((c) => c.id === statusId)
+/**
+ * Move a task to another status. Optimistic: the card jumps columns immediately,
+ * the mutation persists it, and we roll back if it fails.
+ * `employeeId` is the employee assigned to the task (the board only shows assigned tasks).
+ */
+async function onStatusChange(taskId, statusId) {
+  let task = null
   for (const m of project.value?.milestones ?? []) {
-    const t = (m.tasks ?? []).find((x) => x.id === taskId)
-    if (t) {
-      t.currentStatus = { id: statusId, name: col?.name ?? '' }
-      break
-    }
+    task = (m.tasks ?? []).find((x) => x.id === taskId)
+    if (task) break
+  }
+  if (!task) return
+
+  const col = columns.value.find((c) => c.id === statusId)
+  const prevStatus = task.currentStatus ? { ...task.currentStatus } : null
+  const oldStatusId = prevStatus?.id ?? null
+  const employeeId = task.assignments?.[0]?.employee?.id ?? null
+
+  // Optimistic move.
+  task.currentStatus = { id: statusId, name: col?.name ?? '' }
+  
+  try {
+    await projectStore.updateTaskStatus({ taskId, newStatusId: statusId, oldStatusId, employeeId })
+  } catch (err) {
+    task.currentStatus = prevStatus // roll back on failure
+    toastError(err.message)
   }
 }
 
@@ -73,7 +94,7 @@ onMounted(async () => {
       projectStore.fetchProjectBoard(route.params.id),
       taskStatusStore.fetchList({ page: 1, pageSize: 100 }),
     ])
-    project.value = proj
+    project.value = clone(proj)
     columns.value = [...(statuses ?? [])]
       .sort((a, b) => (a.ordering ?? 0) - (b.ordering ?? 0))
       .map((s, i) => ({ id: s.id, name: s.name, accent: ACCENTS[i % ACCENTS.length] }))

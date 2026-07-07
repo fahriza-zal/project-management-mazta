@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { PlusIcon, TrashIcon, FlagIcon, CheckCircleIcon } from '@heroicons/vue/24/outline'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
+import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 
@@ -93,15 +94,13 @@ function remove(index) {
         />
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <BaseInput
+          <BaseDatePicker
             v-model="milestone.expectedStartDate"
-            type="date"
             label="Expected Start"
             :disabled="milestone._id && !allowEdit"
           />
-          <BaseInput
+          <BaseDatePicker
             v-model="milestone.expectedEndDate"
-            type="date"
             label="Expected End"
             :disabled="milestone._id && !allowEdit"
           />

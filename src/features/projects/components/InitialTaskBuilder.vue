@@ -7,6 +7,7 @@ import {
   CheckCircleIcon,
 } from '@heroicons/vue/24/outline'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
+import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BaseSelect from '@/shared/components/base/BaseSelect.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
@@ -135,9 +136,8 @@ function remove(index) {
             :options="priorityOptions"
             :disabled="task._id && !allowEdit"
           />
-          <BaseInput
+          <BaseDatePicker
             v-model="task.dueDate"
-            type="date"
             label="Due Date"
             :disabled="task._id && !allowEdit"
           />

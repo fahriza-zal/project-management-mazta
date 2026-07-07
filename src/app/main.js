@@ -5,6 +5,7 @@ import { DefaultApolloClient } from '@vue/apollo-composable'
 import App from './App.vue'
 import router from './router'
 import { apolloClient } from '@/shared/graphql/apolloClient'
+import '@vuepic/vue-datepicker/dist/main.css'
 import '@/shared/styles/main.css'
 
 const app = createApp({

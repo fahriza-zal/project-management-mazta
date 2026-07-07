@@ -88,18 +88,21 @@ async function onSave() {
     :model-value="modelValue"
     title="Assign Task"
     :subtitle="task?.title"
-    size="sm"
+    size="lg"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <BaseMultiSelect
-      :key="pickerKey"
-      v-model="selectedIds"
-      :fetcher="store.fetchEmployeeOptions"
-      :initial-items="initialItems"
-      label="Employees"
-      placeholder="Cari employee…"
-      empty-text="Employee tidak ditemukan."
-    />
+    <!-- min-height reserves room so the picker's dropdown isn't clipped by the modal scroll area -->
+    <div class="min-h-[320px]">
+      <BaseMultiSelect
+        :key="pickerKey"
+        v-model="selectedIds"
+        :fetcher="store.fetchEmployeeOptions"
+        :initial-items="initialItems"
+        label="Employees"
+        placeholder="Cari employee…"
+        empty-text="Employee tidak ditemukan."
+      />
+    </div>
 
     <template #footer>
       <div class="flex justify-end gap-2">

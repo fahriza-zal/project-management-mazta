@@ -1,6 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { MagnifyingGlassIcon, XMarkIcon, CheckIcon } from '@heroicons/vue/24/outline'
+import {
+  MagnifyingGlassIcon,
+  XMarkIcon,
+  CheckIcon,
+  ChevronUpDownIcon,
+} from '@heroicons/vue/24/outline'
 
 /**
  * Generic searchable multi-select.
@@ -71,6 +76,11 @@ function openDropdown() {
   if (!options.value.length) fetchOptions('')
 }
 
+function toggleDropdown() {
+  if (open.value) open.value = false
+  else openDropdown()
+}
+
 function onSearch(value) {
   query.value = value
   if (timer) clearTimeout(timer)
@@ -112,11 +122,22 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
         :value="query"
         type="text"
         :placeholder="placeholder"
-        class="block h-10 w-full rounded-xl border bg-white/70 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 backdrop-blur focus-ring"
-        :class="error ? 'border-danger focus:ring-danger/30 focus:border-danger' : 'border-white/70'"
+        class="block h-10 w-full rounded-xl border bg-white/70 pl-10 pr-9 text-sm text-slate-800 placeholder:text-slate-400 backdrop-blur focus-ring"
+        :class="
+          error ? 'border-danger focus:ring-danger/30 focus:border-danger' : 'border-white/70'
+        "
         @focus="openDropdown"
         @input="onSearch($event.target.value)"
+        @keydown.esc.prevent="open = false"
       />
+      <button
+        type="button"
+        class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+        :title="open ? 'Tutup' : 'Buka'"
+        @click="toggleDropdown"
+      >
+        <ChevronUpDownIcon class="h-4 w-4" />
+      </button>
     </div>
 
     <!-- Dropdown -->

@@ -79,9 +79,10 @@ async function onStatusChange(taskId, statusId) {
 
   // Optimistic move.
   task.currentStatus = { id: statusId, name: col?.name ?? '' }
-  
+
   try {
     await projectStore.updateTaskStatus({ taskId, newStatusId: statusId, oldStatusId, employeeId })
+    success(`“${task.title}” dipindah ke ${col?.name ?? 'status baru'}.`)
   } catch (err) {
     task.currentStatus = prevStatus // roll back on failure
     toastError(err.message)

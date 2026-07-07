@@ -6,6 +6,7 @@ import { useToast } from '@/shared/composables/useToast'
 import { ArrowLeftIcon, CheckCircleIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
+import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BaseSelect from '@/shared/components/base/BaseSelect.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
@@ -440,8 +441,8 @@ onMounted(() => {
             </div>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <BaseInput v-model="form.startDate" type="date" label="Start Date" />
-              <BaseInput v-model="form.expectedEndDate" type="date" label="Expected End Date" />
+              <BaseDatePicker v-model="form.startDate" label="Start Date" />
+              <BaseDatePicker v-model="form.expectedEndDate" label="Expected End Date" />
             </div>
           </div>
 

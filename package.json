@@ -13,6 +13,7 @@
     "@apollo/client": "^3.11.8",
     "@heroicons/vue": "^2.1.5",
     "@vue/apollo-composable": "^4.2.1",
+    "@vuepic/vue-datepicker": "^14.0.0",
     "graphql": "^16.9.0",
     "pinia": "^2.2.6",
     "vue": "^3.5.13",

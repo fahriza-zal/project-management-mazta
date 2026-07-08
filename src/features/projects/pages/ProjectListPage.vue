@@ -14,6 +14,8 @@ import {
   PencilSquareIcon,
   TrashIcon,
   FolderPlusIcon,
+  LockClosedIcon,
+  LockOpenIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
@@ -128,6 +130,46 @@ const deleteMessage = computed(() =>
 
 function requestDelete(project) {
   deleteState.value = { open: true, project, loading: false }
+}
+
+// ── Lock / unlock project (with confirmation) ────────────────────────────────
+// Locking a project cascades to its tasks on the backend, so reload afterwards.
+const lockState = ref({ open: false, project: null, loading: false })
+
+const lockMessage = computed(() => {
+  const p = lockState.value.project
+  if (!p) return ''
+  return p.isLocked
+    ? `Membuka kunci “${p.name}” juga akan membuka kunci semua task di dalamnya.`
+    : `Mengunci “${p.name}” juga akan mengunci semua task di dalamnya.`
+})
+
+function requestLock(project) {
+  lockState.value = { open: true, project, loading: false }
+}
+
+async function confirmLock() {
+  const p = lockState.value.project
+  if (!p) {
+    lockState.value.open = false
+    return
+  }
+  lockState.value.loading = true
+  try {
+    if (p.isLocked) {
+      await store.unlockProject(p.id)
+      success(`“${p.name}” dibuka kuncinya.`)
+    } else {
+      await store.lockProject(p.id)
+      success(`“${p.name}” dikunci — semua task-nya ikut terkunci.`)
+    }
+    await load()
+    lockState.value.open = false
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    lockState.value.loading = false
+  }
 }
 
 async function confirmDelete() {
@@ -248,7 +290,14 @@ onMounted(() => {
           <span class="font-mono text-xs text-slate-500">{{ row.fullCode || row.prefix }}</span>
         </template>
         <template #cell-name="{ row }">
-          <p class="font-medium text-slate-800">{{ row.name }}</p>
+          <div class="flex items-center gap-1.5">
+            <LockClosedIcon
+              v-if="row.isLocked"
+              class="h-3.5 w-3.5 shrink-0 text-amber-500"
+              title="Terkunci"
+            />
+            <p class="font-medium text-slate-800">{{ row.name }}</p>
+          </div>
           <p v-if="row.description" class="line-clamp-1 text-xs text-slate-400">
             {{ row.description }}
           </p>
@@ -270,6 +319,15 @@ onMounted(() => {
         <template #cell-expectedEndDate="{ row }">{{ formatDate(row.expectedEndDate) }}</template>
         <template #row-actions="{ row }">
           <div class="flex items-center justify-end gap-1">
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              :title="row.isLocked ? 'Buka kunci project' : 'Kunci project'"
+              @click="requestLock(row)"
+            >
+              <LockOpenIcon v-if="row.isLocked" class="h-4 w-4 text-amber-500" />
+              <LockClosedIcon v-else class="h-4 w-4" />
+            </BaseButton>
             <RouterLink :to="{ name: 'project-edit', params: { id: row.id } }" title="Edit project">
               <BaseButton variant="ghost" size="sm">
                 <PencilSquareIcon class="h-4 w-4" />
@@ -303,12 +361,31 @@ onMounted(() => {
           <div class="min-w-0">
             <p class="font-mono text-xs text-slate-500">{{ project.fullCode || project.prefix }}</p>
             <h3
-              class="truncate text-base font-semibold text-slate-900 group-hover:text-primary-700"
+              class="flex items-center gap-1.5 truncate text-base font-semibold text-slate-900 group-hover:text-primary-700"
             >
+              <LockClosedIcon
+                v-if="project.isLocked"
+                class="h-4 w-4 shrink-0 text-amber-500"
+                title="Terkunci"
+              />
               {{ project.name }}
             </h3>
           </div>
           <div class="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              :title="project.isLocked ? 'Buka kunci project' : 'Kunci project'"
+              class="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-slate-100"
+              :class="
+                project.isLocked
+                  ? 'text-amber-500'
+                  : 'text-slate-400 opacity-0 hover:text-amber-600 group-hover:opacity-100'
+              "
+              @click.prevent.stop="requestLock(project)"
+            >
+              <LockOpenIcon v-if="project.isLocked" class="h-4 w-4" />
+              <LockClosedIcon v-else class="h-4 w-4" />
+            </button>
             <button
               type="button"
               title="Edit project"
@@ -394,6 +471,15 @@ onMounted(() => {
       confirm-text="Delete"
       :loading="deleteState.loading"
       @confirm="confirmDelete"
+    />
+
+    <ConfirmDialog
+      v-model="lockState.open"
+      :title="lockState.project?.isLocked ? 'Buka kunci project?' : 'Kunci project?'"
+      :message="lockMessage"
+      :confirm-text="lockState.project?.isLocked ? 'Buka kunci' : 'Kunci'"
+      :loading="lockState.loading"
+      @confirm="confirmLock"
     />
   </div>
 </template>

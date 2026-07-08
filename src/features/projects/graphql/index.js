@@ -152,6 +152,7 @@ export const GET_PROJECT_DETAIL = gql`
         expectedEndDate
         endDate
         isClosed
+        isLocked
         currentStatus {
           id
           name
@@ -179,6 +180,7 @@ export const GET_PROJECT_DETAIL = gql`
             id
             title
             priority
+            isLocked
             assignments {
               id
               employee {
@@ -282,6 +284,7 @@ export const LIST_PROJECTS = gql`
           endDate
           projectMode
           projectCategory
+          isLocked
           projectUnits {
             id
             unit {
@@ -419,6 +422,59 @@ export const DELETE_TASK = gql`
   mutation DeleteTask($deleteTaskId: Int!, $hard: Boolean!) {
     deleteTask(id: $deleteTaskId, hard: $hard) {
       data
+    }
+  }
+`
+
+/* -------------------------------------------------------------------------- */
+/* Lock / unlock. Locking a project cascades to all its tasks on the backend;   */
+/* locking a task affects only that task. Each returns { id, isLocked }.         */
+/* -------------------------------------------------------------------------- */
+
+/** Lock a project (cascades to its tasks). Variables: { lockProjectId: Int! }. */
+export const LOCK_PROJECT = gql`
+  mutation LockProject($lockProjectId: Int!) {
+    lockProject(id: $lockProjectId) {
+      data {
+        id
+        isLocked
+      }
+    }
+  }
+`
+
+/** Unlock a project (cascades to its tasks). Variables: { unlockProjectId: Int! }. */
+export const UNLOCK_PROJECT = gql`
+  mutation UnlockProject($unlockProjectId: Int!) {
+    unlockProject(id: $unlockProjectId) {
+      data {
+        id
+        isLocked
+      }
+    }
+  }
+`
+
+/** Lock a single task. Variables: { lockTaskId: Int! }. */
+export const LOCK_TASK = gql`
+  mutation LockTask($lockTaskId: Int!) {
+    lockTask(id: $lockTaskId) {
+      data {
+        id
+        isLocked
+      }
+    }
+  }
+`
+
+/** Unlock a single task. Variables: { unlockTaskId: Int! }. */
+export const UNLOCK_TASK = gql`
+  mutation UnlockTask($unlockTaskId: Int!) {
+    unlockTask(id: $unlockTaskId) {
+      data {
+        id
+        isLocked
+      }
     }
   }
 `

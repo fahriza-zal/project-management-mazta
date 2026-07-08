@@ -12,6 +12,7 @@ import {
   FlagIcon,
   ClipboardDocumentListIcon,
   LockClosedIcon,
+  LockOpenIcon,
   UserPlusIcon,
 } from '@heroicons/vue/24/outline'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
@@ -19,12 +20,13 @@ import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
+import ConfirmDialog from '@/shared/components/base/ConfirmDialog.vue'
 import TaskAssignModal from '@/features/projects/components/TaskAssignModal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
-const { error: toastError } = useToast()
+const { success, error: toastError } = useToast()
 
 const project = ref(null)
 const loading = ref(true)
@@ -90,6 +92,45 @@ async function onAssigned() {
     await loadProject()
   } catch (err) {
     toastError(err.message)
+  }
+}
+
+// ── Lock / unlock task (with confirmation) ───────────────────────────────────
+const lockState = ref({ open: false, task: null, loading: false })
+
+const lockMessage = computed(() => {
+  const t = lockState.value.task
+  if (!t) return ''
+  return t.isLocked
+    ? `Buka kunci task “${t.title}”? Task ini akan bisa diubah lagi.`
+    : `Kunci task “${t.title}”? Task yang terkunci tidak bisa diubah.`
+})
+
+function requestTaskLock(task) {
+  lockState.value = { open: true, task, loading: false }
+}
+
+async function confirmTaskLock() {
+  const t = lockState.value.task
+  if (!t) {
+    lockState.value.open = false
+    return
+  }
+  lockState.value.loading = true
+  try {
+    if (t.isLocked) {
+      await projectStore.unlockTask(t.id)
+      success(`“${t.title}” dibuka kuncinya.`)
+    } else {
+      await projectStore.lockTask(t.id)
+      success(`“${t.title}” dikunci.`)
+    }
+    await loadProject()
+    lockState.value.open = false
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    lockState.value.loading = false
   }
 }
 
@@ -204,7 +245,12 @@ onMounted(async () => {
                   :key="t.id"
                   class="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 text-sm"
                 >
-                  <ClipboardDocumentListIcon class="h-4 w-4 shrink-0 text-slate-400" />
+                  <LockClosedIcon
+                    v-if="t.isLocked"
+                    class="h-4 w-4 shrink-0 text-amber-500"
+                    title="Terkunci"
+                  />
+                  <ClipboardDocumentListIcon v-else class="h-4 w-4 shrink-0 text-slate-400" />
                   <span class="min-w-0 flex-1 truncate text-slate-700">{{ t.title }}</span>
 
                   <!-- Assignees -->
@@ -220,6 +266,21 @@ onMounted(async () => {
                   <BaseBadge v-if="t.priority" :color="priorityColor(t.priority)" size="sm">
                     {{ humanize(t.priority) }}
                   </BaseBadge>
+
+                  <button
+                    type="button"
+                    class="shrink-0 rounded-lg p-1 transition"
+                    :class="
+                      t.isLocked
+                        ? 'text-amber-500 hover:bg-amber-100'
+                        : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'
+                    "
+                    :title="t.isLocked ? 'Buka kunci task' : 'Kunci task'"
+                    @click="requestTaskLock(t)"
+                  >
+                    <LockOpenIcon v-if="t.isLocked" class="h-4 w-4" />
+                    <LockClosedIcon v-else class="h-4 w-4" />
+                  </button>
 
                   <button
                     type="button"
@@ -288,5 +349,14 @@ onMounted(async () => {
     </div>
 
     <TaskAssignModal v-model="assignOpen" :task="activeTask" @saved="onAssigned" />
+
+    <ConfirmDialog
+      v-model="lockState.open"
+      :title="lockState.task?.isLocked ? 'Buka kunci task?' : 'Kunci task?'"
+      :message="lockMessage"
+      :confirm-text="lockState.task?.isLocked ? 'Buka kunci' : 'Kunci'"
+      :loading="lockState.loading"
+      @confirm="confirmTaskLock"
+    />
   </div>
 </template>

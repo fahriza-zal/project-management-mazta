@@ -19,6 +19,10 @@ import {
   EDIT_TASK,
   UPDATE_TASK_STATUS,
   DELETE_TASK,
+  LOCK_PROJECT,
+  UNLOCK_PROJECT,
+  LOCK_TASK,
+  UNLOCK_TASK,
   LIST_UNIT,
   LIST_PROJECT_ROLE,
   LIST_EMPLOYEE,
@@ -373,6 +377,60 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /* --- Lock / unlock (each returns { id, isLocked }) --- */
+
+  /** Lock a project (backend cascades the lock to its tasks). */
+  async function lockProject(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: LOCK_PROJECT,
+        variables: { lockProjectId: Number(id) },
+      })
+      return data?.lockProject?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal mengunci project.'))
+    }
+  }
+
+  /** Unlock a project (backend cascades the unlock to its tasks). */
+  async function unlockProject(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: UNLOCK_PROJECT,
+        variables: { unlockProjectId: Number(id) },
+      })
+      return data?.unlockProject?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal membuka kunci project.'))
+    }
+  }
+
+  /** Lock a single task (does not affect the project or other tasks). */
+  async function lockTask(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: LOCK_TASK,
+        variables: { lockTaskId: Number(id) },
+      })
+      return data?.lockTask?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal mengunci task.'))
+    }
+  }
+
+  /** Unlock a single task. */
+  async function unlockTask(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: UNLOCK_TASK,
+        variables: { unlockTaskId: Number(id) },
+      })
+      return data?.unlockTask?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal membuka kunci task.'))
+    }
+  }
+
   /** Fetch the values of a GraphQL enum by type name. Returns string[] (raw names). */
   async function fetchEnumValues(name) {
     const { data } = await apolloClient.query({
@@ -411,6 +469,10 @@ export const useProjectStore = defineStore('project', () => {
     fetchEmployeeOptions,
     createTaskAssignment,
     deleteTaskAssignment,
+    lockProject,
+    unlockProject,
+    lockTask,
+    unlockTask,
     fetchEnumValues,
   }
 })

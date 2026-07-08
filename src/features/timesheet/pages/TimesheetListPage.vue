@@ -292,7 +292,15 @@ async function confirmAction() {
     // Update the card in place (no blocking refetch): force the target state and
     // append the new activity so buttons flip and the timeline shows the entry
     // instantly. Apollo freezes results, so replace the row with a clone.
-    stateOverride.value = { ...stateOverride.value, [id]: state }
+    const nextOverride = { ...stateOverride.value, [id]: state }
+    // Only one timesheet may run at a time, so starting one demotes any other
+    // running sheet to hold (mirrors the backend, which keeps a single runner).
+    if (state === 'running') {
+      for (const r of items.value) {
+        if (r.id !== id && stateOf(r) === 'running') nextOverride[r.id] = 'hold'
+      }
+    }
+    stateOverride.value = nextOverride
     const idx = items.value.findIndex((r) => r.id === id)
     if (idx !== -1) {
       const row = items.value[idx]
@@ -309,9 +317,13 @@ async function confirmAction() {
     success(done)
     actionOpen.value = false
     // Reconcile duration/timestamps/status from the server, silently (the action
-    // already succeeded — don't surface a list-refetch error over it).
+    // already succeeded — don't surface a list-refetch error over it). Once fresh
+    // data arrives, drop the optimistic overrides so server status is authoritative.
     store
       .fetchList({ page: page.value, pageSize: PAGE_SIZE, search: search.value.trim() || null })
+      .then(() => {
+        stateOverride.value = {}
+      })
       .catch(() => {})
   } catch (err) {
     toastError(err.message)

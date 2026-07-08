@@ -5,6 +5,7 @@ import {
   UserGroupIcon,
   FlagIcon,
   ViewColumnsIcon,
+  ClockIcon,
 } from '@heroicons/vue/24/outline'
 
 /**
@@ -28,6 +29,9 @@ export const SIDEBAR_NAV = [
   },
   {
     title: 'Transaction',
-    items: [{ name: 'Projects', to: { name: 'projects' }, icon: FolderIcon }],
-  }
+    items: [
+      { name: 'Projects', to: { name: 'projects' }, icon: FolderIcon },
+      { name: 'Timesheet', to: { name: 'timesheet' }, icon: ClockIcon },
+    ],
+  },
 ]

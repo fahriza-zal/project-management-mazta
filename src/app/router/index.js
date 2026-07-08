@@ -49,6 +49,12 @@ const routes = [
         meta: { title: 'Board', breadcrumb: ['Transaction', 'Projects', 'Board'] },
       },
       {
+        path: 'transaction/timesheet',
+        name: 'timesheet',
+        component: () => import('@/features/timesheet/pages/TimesheetListPage.vue'),
+        meta: { title: 'Timesheet', breadcrumb: ['Transaction', 'Timesheet'] },
+      },
+      {
         path: 'master/default-task',
         name: 'default-task',
         component: () => import('@/features/default-task/pages/DefaultTaskListPage.vue'),

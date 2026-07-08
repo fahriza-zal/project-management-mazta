@@ -1,25 +1,21 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { formatDate } from '@/shared/utils/format'
-import { CalendarDaysIcon, FlagIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { CalendarDaysIcon, FlagIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
-import BaseInput from '@/shared/components/base/BaseInput.vue'
-import BaseSelect from '@/shared/components/base/BaseSelect.vue'
-import BaseButton from '@/shared/components/base/BaseButton.vue'
+import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
 
 /**
  * Real-data Kanban for a project. Columns are the task-status definitions
  * (`listTaskStatus`); tasks come from the project (milestones → tasks), grouped
  * by each task's `currentStatus`. Dragging a card between columns emits
- * `status-change`; the per-column quick-add emits `create`.
+ * `status-change`; the per-column add button emits `add` (opens the create modal).
  */
 const props = defineProps({
   columns: { type: Array, default: () => [] }, // [{ id, name, accent }]
   tasks: { type: Array, default: () => [] }, // flattened project tasks
-  milestones: { type: Array, default: () => [] }, // [{ id, name }] for quick-add
-  creatingStatusId: { type: [Number, String, null], default: null },
 })
-const emit = defineEmits(['status-change', 'create'])
+const emit = defineEmits(['status-change', 'add'])
 
 const dotColor = {
   slate: 'bg-slate-400',
@@ -38,10 +34,6 @@ const humanize = (v) =>
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ')
     : ''
-
-const milestoneOptions = computed(() =>
-  props.milestones.map((m) => ({ value: m.id, label: m.name })),
-)
 
 const grouped = computed(() => {
   const map = {}
@@ -71,29 +63,6 @@ function onDrop(statusId) {
   const task = props.tasks.find((t) => t.id === id)
   if (task && task.currentStatus?.id !== statusId) emit('status-change', id, statusId)
 }
-
-// ── Quick-add ────────────────────────────────────────────────────────────────
-const addingColumn = ref(null)
-const draft = ref({ title: '', milestoneId: '' })
-
-function openAdd(columnId) {
-  addingColumn.value = columnId
-  draft.value = { title: '', milestoneId: milestoneOptions.value[0]?.value ?? '' }
-}
-
-function cancelAdd() {
-  addingColumn.value = null
-  draft.value = { title: '', milestoneId: '' }
-}
-
-function submitAdd(statusId) {
-  if (!draft.value.title.trim()) return
-  emit('create', {
-    statusId,
-    milestoneId: draft.value.milestoneId || null,
-    title: draft.value.title.trim(),
-  })
-}
 </script>
 
 <template>
@@ -111,7 +80,7 @@ function submitAdd(statusId) {
         <button
           class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
           title="Add task"
-          @click="openAdd(col.id)"
+          @click="emit('add', col.id)"
         >
           <PlusIcon class="h-4 w-4" />
         </button>
@@ -129,39 +98,6 @@ function submitAdd(statusId) {
         @dragleave="overColumn = null"
         @drop.prevent="onDrop(col.id)"
       >
-        <!-- Quick-add form -->
-        <div v-if="addingColumn === col.id" class="rounded-xl border border-slate-200 bg-white p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <p class="text-xs font-medium text-slate-600">New task</p>
-            <button class="text-slate-400 hover:text-slate-600" @click="cancelAdd">
-              <XMarkIcon class="h-4 w-4" />
-            </button>
-          </div>
-          <BaseInput
-            v-model="draft.title"
-            placeholder="Task title"
-            @keydown.enter="submitAdd(col.id)"
-          />
-          <BaseSelect
-            v-if="milestoneOptions.length"
-            v-model="draft.milestoneId"
-            class="mt-2"
-            placeholder="No milestone"
-            :options="milestoneOptions"
-          />
-          <div class="mt-2 flex justify-end gap-2">
-            <BaseButton variant="ghost" size="sm" @click="cancelAdd">Cancel</BaseButton>
-            <BaseButton
-              variant="primary"
-              size="sm"
-              :loading="creatingStatusId === col.id"
-              @click="submitAdd(col.id)"
-            >
-              Add
-            </BaseButton>
-          </div>
-        </div>
-
         <!-- Task cards -->
         <article
           v-for="task in grouped[col.id] || []"
@@ -191,12 +127,19 @@ function submitAdd(statusId) {
               {{ formatDate(task.dueDate, { year: undefined }) }}
             </span>
           </div>
+
+          <!-- Assignees -->
+          <div v-if="task.assignments?.length" class="mt-2.5 flex items-center -space-x-1.5">
+            <BaseAvatar
+              v-for="a in task.assignments"
+              :key="a.id"
+              :name="a.employee?.fullName || '?'"
+              size="xs"
+            />
+          </div>
         </article>
 
-        <p
-          v-if="!(grouped[col.id]?.length || 0) && addingColumn !== col.id"
-          class="py-8 text-center text-xs text-slate-400"
-        >
+        <p v-if="!(grouped[col.id]?.length || 0)" class="py-8 text-center text-xs text-slate-400">
           Drop tasks here
         </p>
       </div>

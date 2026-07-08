@@ -7,6 +7,7 @@ import { useToast } from '@/shared/composables/useToast'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import ProjectTaskBoard from '@/features/projects/components/ProjectTaskBoard.vue'
+import KanbanTaskCreateModal from '@/features/projects/components/KanbanTaskCreateModal.vue'
 
 const route = useRoute()
 const projectStore = useProjectStore()
@@ -15,7 +16,6 @@ const { success, error: toastError } = useToast()
 
 const project = ref(null)
 const loading = ref(true)
-const creatingStatusId = ref(null)
 
 // Columns come from the task-status definitions (`listTaskStatus`), ordered by
 // `ordering`; a small palette cycles the accent colors.
@@ -41,22 +41,18 @@ async function reload() {
   project.value = clone(await projectStore.fetchProjectBoard(route.params.id))
 }
 
-/** Create a task directly in a column (its status). */
-async function onCreate({ statusId, milestoneId, title }) {
-  creatingStatusId.value = statusId
-  try {
-    await projectStore.createTask({
-      title,
-      milestoneId: milestoneId ? Number(milestoneId) : null,
-      currentStatusId: Number(statusId),
-    })
-    await reload()
-    success('Task created.')
-  } catch (err) {
-    toastError(err.message)
-  } finally {
-    creatingStatusId.value = null
-  }
+// Create task modal, opened from a column's add button (its status is preset).
+const createOpen = ref(false)
+const createStatus = ref({ id: null, name: '' })
+
+function onAdd(statusId) {
+  const col = columns.value.find((c) => c.id === statusId)
+  createStatus.value = { id: statusId, name: col?.name ?? '' }
+  createOpen.value = true
+}
+
+async function onCreated() {
+  await reload()
 }
 
 /**
@@ -124,10 +120,17 @@ onMounted(async () => {
     <ProjectTaskBoard
       :columns="columns"
       :tasks="tasks"
-      :milestones="milestones"
-      :creating-status-id="creatingStatusId"
-      @create="onCreate"
+      @add="onAdd"
       @status-change="onStatusChange"
+    />
+
+    <!-- Create task -->
+    <KanbanTaskCreateModal
+      v-model="createOpen"
+      :status-id="createStatus.id"
+      :status-name="createStatus.name"
+      :milestones="milestones"
+      @created="onCreated"
     />
   </div>
 

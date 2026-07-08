@@ -54,10 +54,31 @@ function humanize(name) {
     .join(' ')
 }
 
-/** The latest activity's status = the timesheet's current status. */
+/** Current status: prefer the sheet's top-level status, fall back to the latest activity. */
 function currentStatus(row) {
+  if (row.status) return row.status
   const acts = row.activities ?? []
   return acts.length ? acts[acts.length - 1].status : null
+}
+
+/** Seconds → "HH:MM:SS". */
+function formatDuration(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0))
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
+}
+
+/** ISO datetime → compact local label (e.g. "08 Jul 14:30"). */
+function formatDateTime(v) {
+  if (!v) return null
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return v
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 /** Bucket a raw status string into one of: new | running | hold | closed. */
@@ -216,6 +237,11 @@ async function confirmAction() {
     }
     success(done)
     actionOpen.value = false
+    // Reconcile duration/timestamps/status from the server, silently (the action
+    // already succeeded — don't surface a list-refetch error over it).
+    store
+      .fetchList({ page: page.value, pageSize: PAGE_SIZE, search: search.value.trim() || null })
+      .catch(() => {})
   } catch (err) {
     toastError(err.message)
   } finally {
@@ -309,6 +335,15 @@ onMounted(load)
           <p v-if="row.project" class="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
             <FolderIcon class="h-3.5 w-3.5" /> {{ row.project.name }}
           </p>
+
+          <!-- Duration + time range -->
+          <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span class="inline-flex items-center gap-1 font-semibold tabular-nums text-slate-700">
+              <ClockIcon class="h-3.5 w-3.5" /> {{ formatDuration(row.seconds) }}
+            </span>
+            <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
+            <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
+          </div>
 
           <!-- Activity timeline -->
           <div class="mt-4 flex-1">

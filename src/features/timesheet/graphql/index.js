@@ -63,6 +63,10 @@ export const LIST_TIMESHEET = gql`
         hasPrev
         results {
           id
+          status
+          seconds
+          startTime
+          endTime
           project {
             id
             name

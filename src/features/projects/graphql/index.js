@@ -133,9 +133,12 @@ export const GET_PROJECT = gql`
 `
 
 /**
- * Light project fetch for the Detail page — project info, units, and milestones
- * with only the task fields the detail view renders (title + priority). Keeping
- * tasks minimal here avoids the slow full-task payload. Variables: { getProjectId: Int! }.
+ * Rich project fetch for the Detail page — everything the redesigned detail view
+ * renders: the header/summary cards (task & milestone progress, tracked timesheet
+ * hours, team size), the milestone → task breakdown (with status, priority,
+ * assignees, comment counts, estimate/tracked hours, lock state), the assigned
+ * units, the creator, and the activity feed. Heavier than the old "light" detail
+ * query on purpose — the new layout needs these fields. Variables: { getProjectId: Int! }.
  */
 export const GET_PROJECT_DETAIL = gql`
   query GetProjectDetail($getProjectId: Int!) {
@@ -153,34 +156,66 @@ export const GET_PROJECT_DETAIL = gql`
         endDate
         isClosed
         isLocked
+        createdAt
+        createdBy {
+          id
+          username
+          firstName
+          lastName
+          dateJoined
+        }
         currentStatus {
           id
           name
+          isClosed
         }
         projectUnits {
           id
           unit {
             id
             name
+            unitType
           }
           role {
             id
             name
           }
         }
+        sheets {
+          id
+          seconds
+        }
+        attachments {
+          id
+          files
+        }
         milestones {
           id
           name
           description
+          order
           expectedStartDate
           expectedEndDate
           isCounted
           status
+          progress
           tasks {
             id
             title
+            description
             priority
+            taskType
+            dueDate
+            isClosed
             isLocked
+            estimatedSeconds
+            actualSeconds
+            doneAt
+            currentStatus {
+              id
+              name
+              isClosed
+            }
             assignments {
               id
               employee {
@@ -188,7 +223,35 @@ export const GET_PROJECT_DETAIL = gql`
                 fullName
               }
             }
+            comments {
+              id
+              comment
+              createdAt
+              employee {
+                fullName
+                user {
+                  email
+                }
+              }
+            }
+            sheets {
+              id
+              seconds
+            }
+            attachments {
+              id
+              files
+            }
           }
+        }
+        activities {
+          id
+          status
+          action
+          oldValue
+          newValue
+          description
+          createdAt
         }
       }
     }
@@ -229,6 +292,17 @@ export const GET_PROJECT_BOARD = gql`
               employee {
                 id
                 fullName
+              }
+            }
+            comments {
+              id
+              comment
+              createdAt
+              employee {
+                fullName
+                user {
+                  email
+                }
               }
             }
           }
@@ -563,6 +637,22 @@ export const DELETE_TASK_ASSIGNMENT = gql`
   mutation DeleteTaskAssignment($deleteTaskAssignmentId: Int!, $hard: Boolean!) {
     deleteTaskAssignment(id: $deleteTaskAssignmentId, hard: $hard) {
       data
+    }
+  }
+`
+
+/**
+ * Add a comment to a task. The author (`employeeId`) is the signed-in employee
+ * (auth store / `pm_profile`), not a picked value.
+ * Variables: { input: TaskCommentInput! } where input = { comment, employeeId, taskId }.
+ */
+export const CREATE_TASK_COMMENT = gql`
+  mutation CreateTaskComment($input: TaskCommentInput!) {
+    createTaskComment(input: $input) {
+      data {
+        id
+        comment
+      }
     }
   }
 `

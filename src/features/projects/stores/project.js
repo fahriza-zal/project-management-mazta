@@ -28,6 +28,7 @@ import {
   LIST_EMPLOYEE,
   CREATE_TASK_ASSIGNMENT,
   DELETE_TASK_ASSIGNMENT,
+  CREATE_TASK_COMMENT,
 } from '@/features/projects/graphql'
 
 /** The parent-project picker shows 10 rows; the search narrows it server-side. */
@@ -364,6 +365,30 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * Add a comment to a task.
+   * @param {{ comment: string, taskId: number|string, employeeId: number|string }} input
+   *   `employeeId` = the signed-in employee (from the auth store / `pm_profile`).
+   * @returns created comment `{ id, comment }`
+   */
+  async function createTaskComment({ comment, taskId, employeeId }) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: CREATE_TASK_COMMENT,
+        variables: {
+          input: {
+            comment,
+            taskId: Number(taskId),
+            employeeId: employeeId == null ? null : Number(employeeId),
+          },
+        },
+      })
+      return data?.createTaskComment?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal mengirim komentar.'))
+    }
+  }
+
   /** Remove a task assignment by its id (unassign; hard is always false). */
   async function deleteTaskAssignment(id) {
     try {
@@ -469,6 +494,7 @@ export const useProjectStore = defineStore('project', () => {
     fetchEmployeeOptions,
     createTaskAssignment,
     deleteTaskAssignment,
+    createTaskComment,
     lockProject,
     unlockProject,
     lockTask,

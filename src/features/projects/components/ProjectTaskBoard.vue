@@ -1,7 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { formatDate } from '@/shared/utils/format'
-import { CalendarDaysIcon, FlagIcon, PlusIcon } from '@heroicons/vue/24/outline'
+import {
+  CalendarDaysIcon,
+  FlagIcon,
+  PlusIcon,
+  ChatBubbleLeftRightIcon,
+} from '@heroicons/vue/24/outline'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
 
@@ -15,7 +20,7 @@ const props = defineProps({
   columns: { type: Array, default: () => [] }, // [{ id, name, accent }]
   tasks: { type: Array, default: () => [] }, // flattened project tasks
 })
-const emit = defineEmits(['status-change', 'add'])
+const emit = defineEmits(['status-change', 'add', 'comment'])
 
 const dotColor = {
   slate: 'bg-slate-400',
@@ -128,14 +133,26 @@ function onDrop(statusId) {
             </span>
           </div>
 
-          <!-- Assignees -->
-          <div v-if="task.assignments?.length" class="mt-2.5 flex items-center -space-x-1.5">
-            <BaseAvatar
-              v-for="a in task.assignments"
-              :key="a.id"
-              :name="a.employee?.fullName || '?'"
-              size="xs"
-            />
+          <!-- Footer: assignees + comments -->
+          <div class="mt-2.5 flex items-center justify-between gap-2">
+            <div v-if="task.assignments?.length" class="flex items-center -space-x-1.5">
+              <BaseAvatar
+                v-for="a in task.assignments"
+                :key="a.id"
+                :name="a.employee?.fullName || '?'"
+                size="xs"
+              />
+            </div>
+            <span v-else />
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
+              title="Comments"
+              @click.stop="emit('comment', task)"
+            >
+              <ChatBubbleLeftRightIcon class="h-3.5 w-3.5" />
+              {{ task.comments?.length || 0 }}
+            </button>
           </div>
         </article>
 

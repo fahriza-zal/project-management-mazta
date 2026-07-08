@@ -6,8 +6,10 @@ import { useTaskStatusStore } from '@/features/task-status/stores/taskStatus'
 import { useToast } from '@/shared/composables/useToast'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
+import BaseModal from '@/shared/components/base/BaseModal.vue'
 import ProjectTaskBoard from '@/features/projects/components/ProjectTaskBoard.vue'
 import KanbanTaskCreateModal from '@/features/projects/components/KanbanTaskCreateModal.vue'
+import TaskComments from '@/features/projects/components/TaskComments.vue'
 
 const route = useRoute()
 const projectStore = useProjectStore()
@@ -52,6 +54,21 @@ function onAdd(statusId) {
 }
 
 async function onCreated() {
+  await reload()
+}
+
+// Comments modal, opened from a card's comment button.
+const commentOpen = ref(false)
+const commentTaskId = ref(null)
+const commentTask = computed(() => tasks.value.find((t) => t.id === commentTaskId.value) ?? null)
+
+function onComment(task) {
+  commentTaskId.value = task.id
+  commentOpen.value = true
+}
+
+/** Refetch so the new comment (and its count on the card) shows up. */
+async function onCommentSaved() {
   await reload()
 }
 
@@ -122,6 +139,7 @@ onMounted(async () => {
       :tasks="tasks"
       @add="onAdd"
       @status-change="onStatusChange"
+      @comment="onComment"
     />
 
     <!-- Create task -->
@@ -132,6 +150,22 @@ onMounted(async () => {
       :milestones="milestones"
       @created="onCreated"
     />
+
+    <!-- Task comments -->
+    <BaseModal
+      v-model="commentOpen"
+      :title="commentTask ? commentTask.title : 'Comments'"
+      subtitle="Comments"
+      size="lg"
+    >
+      <TaskComments
+        v-if="commentTask"
+        :key="commentTask.id"
+        :task="commentTask"
+        :collapsible="false"
+        @saved="onCommentSaved"
+      />
+    </BaseModal>
   </div>
 
   <p v-else-if="loading" class="py-16 text-center text-sm text-slate-400">Loading…</p>

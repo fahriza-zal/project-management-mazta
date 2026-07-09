@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useProjectStore } from '@/features/projects/stores/project'
 import { useTaskStatusStore } from '@/features/task-status/stores/taskStatus'
+import { useAuthStore } from '@/features/auth/stores/auth'
 import { useToast } from '@/shared/composables/useToast'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
@@ -14,6 +15,7 @@ import TaskComments from '@/features/projects/components/TaskComments.vue'
 const route = useRoute()
 const projectStore = useProjectStore()
 const taskStatusStore = useTaskStatusStore()
+const auth = useAuthStore()
 const { success, error: toastError } = useToast()
 
 const project = ref(null)
@@ -75,7 +77,8 @@ async function onCommentSaved() {
 /**
  * Move a task to another status. Optimistic: the card jumps columns immediately,
  * the mutation persists it, and we roll back if it fails.
- * `employeeId` is the employee assigned to the task (the board only shows assigned tasks).
+ * `employeeId` is the signed-in employee (auth store / `pm_profile` → `employee.id`) —
+ * i.e. who performed the move, not the task's assignee.
  */
 async function onStatusChange(taskId, statusId) {
   let task = null
@@ -88,7 +91,7 @@ async function onStatusChange(taskId, statusId) {
   const col = columns.value.find((c) => c.id === statusId)
   const prevStatus = task.currentStatus ? { ...task.currentStatus } : null
   const oldStatusId = prevStatus?.id ?? null
-  const employeeId = task.assignments?.[0]?.employee?.id ?? null
+  const employeeId = auth.employee?.id ?? null
 
   // Optimistic move.
   task.currentStatus = { id: statusId, name: col?.name ?? '' }

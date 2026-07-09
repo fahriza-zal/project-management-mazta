@@ -19,6 +19,13 @@ import {
   UserPlusIcon,
   DocumentIcon,
   ClipboardDocumentListIcon,
+  ChartBarIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+  ArrowTrendingUpIcon,
+  ArrowsRightLeftIcon,
+  CalendarDaysIcon,
 } from '@heroicons/vue/24/outline'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
@@ -66,6 +73,43 @@ function secondsToHm(total) {
   return `${m}m`
 }
 
+/**
+ * Seconds → "2d 4h" / "4h 30m" / "12m" — for cycle/lead times that can span days.
+ * (averageCycleTime/averageLeadTime/leadTime are assumed to be in seconds like the
+ * other duration fields; adjust the divisor if the backend reports another unit.)
+ */
+function secondsToDuration(total) {
+  const s = Math.round(Number(total) || 0)
+  if (!s) return '—'
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d) return h ? `${d}d ${h}h` : `${d}d`
+  if (h) return m ? `${h}h ${m}m` : `${h}h`
+  return `${m}m`
+}
+
+/** Score 0–100 → badge colour. `invert` for risk (a high score is bad). */
+function scoreColor(value, invert = false) {
+  const v = Number(value) || 0
+  const high = invert ? v < 34 : v >= 67
+  const low = invert ? v >= 67 : v < 34
+  if (high) return 'success'
+  if (low) return 'danger'
+  return 'warning'
+}
+
+/** Score 0–100 → Tailwind border/bg/text classes for a hero tile. */
+function scoreTint(value, invert = false) {
+  return {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    danger: 'border-red-200 bg-red-50 text-red-700',
+  }[scoreColor(value, invert)]
+}
+
+const round = (v) => Math.round(Number(v) || 0)
+
 // ── Colour maps ──────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
   draft: 'slate',
@@ -102,22 +146,39 @@ const isTaskDone = (t) => !!(t.isClosed || t.currentStatus?.isClosed || t.doneAt
 const taskCount = computed(() => allTasks.value.length)
 const doneTaskCount = computed(() => allTasks.value.filter(isTaskDone).length)
 
+/**
+ * A milestone's completion %. The computed `metric.progress` (e.g. "1E+2" → 100)
+ * is authoritative when present; fall back to the raw `progress` field ("0.0000").
+ * Both can arrive as strings — `Number()` parses decimals and scientific notation.
+ */
+const mProgress = (m) => {
+  const raw = m?.metric?.progress ?? m?.progress
+  const n = Number(raw)
+  return Number.isFinite(n) ? Math.round(n) : 0
+}
+
 const milestoneProgress = computed(() => {
   if (!milestones.value.length) return 0
-  const sum = milestones.value.reduce((acc, m) => acc + (Number(m.progress) || 0), 0)
+  const sum = milestones.value.reduce((acc, m) => acc + mProgress(m), 0)
   return Math.round(sum / milestones.value.length)
 })
 
+/**
+ * Total tracked seconds, de-duplicated by sheet id. The same sheet is reported
+ * both under the project and under its task (e.g. sheet 24 appears in both), so a
+ * naive sum double-counts — key by id and total the distinct sheets.
+ */
 const trackedSeconds = computed(() => {
-  const projectSecs = (project.value?.sheets ?? []).reduce(
-    (a, s) => a + (Number(s.seconds) || 0),
-    0,
-  )
-  const taskSecs = allTasks.value.reduce(
-    (a, t) => a + (t.sheets ?? []).reduce((b, s) => b + (Number(s.seconds) || 0), 0),
-    0,
-  )
-  return projectSecs + taskSecs
+  const byId = new Map()
+  const add = (sheets) => {
+    for (const s of sheets ?? []) {
+      if (s?.id == null) continue
+      byId.set(s.id, Number(s.seconds) || 0)
+    }
+  }
+  add(project.value?.sheets)
+  for (const t of allTasks.value) add(t.sheets)
+  return [...byId.values()].reduce((a, b) => a + b, 0)
 })
 
 const teamMembers = computed(() => project.value?.projectUnits?.length ?? 0)
@@ -163,6 +224,34 @@ const activeTab = ref('milestones')
 // Expand/collapse milestone accordions (all open by default).
 const collapsed = ref({})
 const toggleMilestone = (id) => (collapsed.value[id] = !collapsed.value[id])
+
+// Expand/collapse a task's activity history (collapsed by default).
+const activityOpen = ref({})
+const toggleActivity = (id) => (activityOpen.value[id] = !activityOpen.value[id])
+
+/**
+ * A task's activities, newest first. `updatedAt` can be null (as in the sample),
+ * so fall back to id order — higher id = more recent.
+ */
+const taskActivities = (t) =>
+  [...(t?.activities ?? [])].sort((a, b) => {
+    const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+    const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+    return tb - ta || (Number(b.id) || 0) - (Number(a.id) || 0)
+  })
+
+/** Actor of an activity, when the backend fills `updatedBy` (else the description carries the name). */
+const activityActor = (a) => a?.updatedBy?.username || a?.updatedBy?.email || ''
+
+/** Colour an activity by its `action` (move/created/deleted/…). */
+function activityActionColor(action) {
+  const a = String(action || '').toLowerCase()
+  if (/creat/.test(a)) return 'success'
+  if (/move|status|updat|edit/.test(a)) return 'info'
+  if (/delet|remov|close/.test(a)) return 'danger'
+  if (/lock/.test(a)) return 'warning'
+  return 'slate'
+}
 
 function goToEdit() {
   router.push({ name: 'project-edit', params: { id: route.params.id } })
@@ -448,12 +537,10 @@ onMounted(async () => {
                         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
                           <div
                             class="h-full rounded-full bg-primary-500"
-                            :style="{ width: (Number(m.progress) || 0) + '%' }"
+                            :style="{ width: mProgress(m) + '%' }"
                           />
                         </div>
-                        <span class="text-caption w-8 text-right"
-                          >{{ Number(m.progress) || 0 }}%</span
-                        >
+                        <span class="text-caption w-8 text-right">{{ mProgress(m) }}%</span>
                       </div>
                       <ChevronUpIcon
                         v-if="!collapsed[m.id]"
@@ -465,6 +552,145 @@ onMounted(async () => {
                     <!-- Tasks -->
                     <div v-if="!collapsed[m.id]" class="space-y-2.5 px-4 pb-4">
                       <p v-if="m.description" class="text-xs text-slate-500">{{ m.description }}</p>
+
+                      <!-- Milestone metrics -->
+                      <div
+                        v-if="m.metric"
+                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div class="mb-3 flex items-center justify-between gap-2">
+                          <p
+                            class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-600"
+                          >
+                            <ChartBarIcon class="h-4 w-4 text-primary-500" />
+                            Milestone Metrics
+                          </p>
+                          <span v-if="m.metric.calculatedAt" class="text-caption">
+                            Updated {{ formatDate(m.metric.calculatedAt) }}
+                          </span>
+                        </div>
+
+                        <!-- Hero: Health & Risk -->
+                        <div class="grid grid-cols-2 gap-3">
+                          <div
+                            class="flex items-center justify-between rounded-xl border p-3"
+                            :class="scoreTint(m.metric.healthScore)"
+                          >
+                            <div>
+                              <p class="text-xs font-medium opacity-80">Health Score</p>
+                              <p class="text-2xl font-bold leading-tight">
+                                {{ round(m.metric.healthScore) }}
+                                <span class="text-sm font-medium opacity-60">/100</span>
+                              </p>
+                            </div>
+                            <ShieldCheckIcon class="h-8 w-8 opacity-40" />
+                          </div>
+                          <div
+                            class="flex items-center justify-between rounded-xl border p-3"
+                            :class="scoreTint(m.metric.riskScore, true)"
+                          >
+                            <div>
+                              <p class="text-xs font-medium opacity-80">Risk Score</p>
+                              <p class="text-2xl font-bold leading-tight">
+                                {{ round(m.metric.riskScore) }}
+                                <span class="text-sm font-medium opacity-60">/100</span>
+                              </p>
+                            </div>
+                            <ExclamationTriangleIcon class="h-8 w-8 opacity-40" />
+                          </div>
+                        </div>
+
+                        <!-- Stat tiles -->
+                        <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <CheckCircleIcon class="h-3.5 w-3.5 text-emerald-500" />
+                              Completed
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-800">
+                              {{ m.metric.completedTasks ?? 0 }}
+                              <span class="text-sm font-medium text-slate-400"
+                                >/ {{ m.metric.totalTasks ?? 0 }}</span
+                              >
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <ExclamationTriangleIcon class="h-3.5 w-3.5 text-red-400" />
+                              Overdue
+                            </p>
+                            <p
+                              class="mt-0.5 text-lg font-bold"
+                              :class="
+                                (m.metric.overdueTasks || 0) > 0 ? 'text-red-600' : 'text-slate-800'
+                              "
+                            >
+                              {{ m.metric.overdueTasks ?? 0 }}
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <FlagIcon class="h-3.5 w-3.5 text-slate-400" />
+                              On Time / Late
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold">
+                              <span class="text-emerald-600">{{
+                                m.metric.completedOnTime ?? 0
+                              }}</span>
+                              <span class="text-sm font-medium text-slate-300"> / </span>
+                              <span class="text-amber-600">{{ m.metric.completedLate ?? 0 }}</span>
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <ClockIcon class="h-3.5 w-3.5 text-sky-500" />
+                              Est / Actual
+                            </p>
+                            <p class="mt-0.5 text-sm font-bold text-slate-800">
+                              {{ secondsToHm(m.metric.estimatedSeconds) }}
+                              <span class="font-medium text-slate-400">/</span>
+                              {{ secondsToHm(m.metric.actualSeconds) }}
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <ArrowPathIcon class="h-3.5 w-3.5 text-violet-500" />
+                              Avg Cycle
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-800">
+                              {{ secondsToDuration(m.metric.averageCycleTime) }}
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <ArrowTrendingUpIcon class="h-3.5 w-3.5 text-indigo-500" />
+                              Avg Lead
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-800">
+                              {{ secondsToDuration(m.metric.averageLeadTime) }}
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <ArrowsRightLeftIcon class="h-3.5 w-3.5 text-slate-400" />
+                              Status Changes
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-800">
+                              {{ m.metric.totalStatusChanges ?? 0 }}
+                            </p>
+                          </div>
+                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <p class="text-caption flex items-center gap-1">
+                              <DocumentIcon class="h-3.5 w-3.5 text-slate-400" />
+                              Attachments
+                            </p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-800">
+                              {{ m.metric.totalAttachments ?? 0 }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div
                         v-for="t in m.tasks"
                         :key="t.id"
@@ -533,6 +759,115 @@ onMounted(async () => {
                             />
                           </div>
                           <span v-else class="text-caption italic">Unassigned</span>
+                        </div>
+
+                        <!-- task metrics -->
+                        <div
+                          v-if="t.metric"
+                          class="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3"
+                        >
+                          <span
+                            v-if="t.metric.timeSpentSeconds"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-700"
+                          >
+                            <ClockIcon class="h-3.5 w-3.5" />
+                            <span class="font-medium">Time Spent</span>
+                            <span class="font-bold">{{
+                              secondsToHm(t.metric.timeSpentSeconds)
+                            }}</span>
+                          </span>
+                          <span
+                            v-if="t.metric.cycleTime"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-700"
+                          >
+                            <ArrowPathIcon class="h-3.5 w-3.5" />
+                            <span class="font-medium">Cycle</span>
+                            <span class="font-bold">{{
+                              secondsToDuration(t.metric.cycleTime)
+                            }}</span>
+                          </span>
+                          <span
+                            v-if="t.metric.leadTime"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700"
+                          >
+                            <ArrowTrendingUpIcon class="h-3.5 w-3.5" />
+                            <span class="font-medium">Lead</span>
+                            <span class="font-bold">{{
+                              secondsToDuration(t.metric.leadTime)
+                            }}</span>
+                          </span>
+                          <span
+                            v-if="t.metric.statusChanges != null"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
+                          >
+                            <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
+                            <span class="font-medium">Moves</span>
+                            <span class="font-bold">{{ t.metric.statusChanges }}</span>
+                          </span>
+                          <span
+                            v-if="t.metric.lastStatusChangeAt"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
+                          >
+                            <CalendarDaysIcon class="h-3.5 w-3.5" />
+                            <span class="font-medium">Last</span>
+                            <span class="font-bold">{{
+                              formatDate(t.metric.lastStatusChangeAt)
+                            }}</span>
+                          </span>
+                        </div>
+
+                        <!-- task activity history -->
+                        <div
+                          v-if="t.activities?.length"
+                          class="mt-3 border-t border-slate-100 pt-3"
+                        >
+                          <button
+                            type="button"
+                            class="flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700"
+                            @click.stop="toggleActivity(t.id)"
+                          >
+                            <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
+                            Activity History ({{ t.activities.length }})
+                            <ChevronUpIcon v-if="activityOpen[t.id]" class="h-3.5 w-3.5" />
+                            <ChevronDownIcon v-else class="h-3.5 w-3.5" />
+                          </button>
+
+                          <ol v-if="activityOpen[t.id]" class="mt-2.5 space-y-3">
+                            <li
+                              v-for="a in taskActivities(t)"
+                              :key="a.id"
+                              class="relative flex gap-2.5 pl-1"
+                            >
+                              <span
+                                class="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400 ring-2 ring-primary-100"
+                              />
+                              <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                  <BaseBadge
+                                    v-if="a.action"
+                                    :color="activityActionColor(a.action)"
+                                    size="sm"
+                                  >
+                                    {{ humanize(a.action) }}
+                                  </BaseBadge>
+                                  <span v-if="a.updatedAt" class="text-caption">
+                                    {{
+                                      formatDate(a.updatedAt, {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })
+                                    }}
+                                  </span>
+                                </div>
+                                <p class="mt-1 text-xs leading-relaxed text-slate-600">
+                                  {{ a.description || 'Task updated' }}
+                                </p>
+                                <p v-if="activityActor(a)" class="text-caption mt-0.5">
+                                  by {{ activityActor(a) }}
+                                </p>
+                              </div>
+                            </li>
+                          </ol>
                         </div>
 
                         <!-- comments thread -->

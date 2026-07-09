@@ -6,6 +6,7 @@ import {
   FlagIcon,
   PlusIcon,
   ChatBubbleLeftRightIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/vue/24/outline'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
@@ -49,6 +50,22 @@ const grouped = computed(() => {
   }
   return map
 })
+
+/**
+ * A task is overdue when its due date is before today and it isn't done/closed.
+ * Compared as `yyyy-MM-dd` strings to stay timezone-safe (dueDate can be a plain
+ * date or a datetime — take the first 10 chars either way).
+ */
+function isOverdue(task) {
+  if (!task.dueDate) return false
+  if (task.isClosed || task.currentStatus?.isClosed) return false
+  const due = String(task.dueDate).slice(0, 10)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+    now.getDate(),
+  ).padStart(2, '0')}`
+  return due < today
+}
 
 // ── Drag & drop ──────────────────────────────────────────────────────────────
 const draggingId = ref(null)
@@ -108,7 +125,12 @@ function onDrop(statusId) {
           v-for="task in grouped[col.id] || []"
           :key="task.id"
           draggable="true"
-          class="cursor-grab rounded-xl border border-slate-200 bg-white p-3.5 shadow-soft transition hover:border-primary-200 hover:shadow-card-hover active:cursor-grabbing"
+          class="cursor-grab rounded-xl border p-3.5 shadow-soft transition active:cursor-grabbing"
+          :class="
+            isOverdue(task)
+              ? 'border-red-300 bg-red-50/70 hover:border-red-400'
+              : 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-card-hover'
+          "
           @dragstart="onDragStart(task, $event)"
         >
           <div class="mb-2 flex items-start justify-between gap-2">
@@ -127,8 +149,14 @@ function onDrop(statusId) {
               <FlagIcon class="h-3.5 w-3.5" />
               {{ task.milestone.name }}
             </span>
-            <span v-if="task.dueDate" class="inline-flex items-center gap-1">
-              <CalendarDaysIcon class="h-3.5 w-3.5" />
+            <span
+              v-if="task.dueDate"
+              class="inline-flex items-center gap-1"
+              :class="isOverdue(task) ? 'font-semibold text-red-600' : ''"
+              :title="isOverdue(task) ? 'Overdue' : undefined"
+            >
+              <ExclamationTriangleIcon v-if="isOverdue(task)" class="h-3.5 w-3.5" />
+              <CalendarDaysIcon v-else class="h-3.5 w-3.5" />
               {{ formatDate(task.dueDate, { year: undefined }) }}
             </span>
           </div>

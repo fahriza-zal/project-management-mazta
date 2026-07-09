@@ -106,7 +106,7 @@ export const GET_PROJECT = gql`
             taskType
             doneAt
             dueDate
-            estimatedHours
+            estimatedSeconds
             milestone {
               id
               name
@@ -199,6 +199,23 @@ export const GET_PROJECT_DETAIL = gql`
           isCounted
           status
           progress
+          metric {
+            actualSeconds
+            averageCycleTime
+            averageLeadTime
+            calculatedAt
+            completedLate
+            completedOnTime
+            completedTasks
+            estimatedSeconds
+            healthScore
+            overdueTasks
+            progress
+            riskScore
+            totalAttachments
+            totalStatusChanges
+            totalTasks
+          }
           tasks {
             id
             title
@@ -211,6 +228,19 @@ export const GET_PROJECT_DETAIL = gql`
             estimatedSeconds
             actualSeconds
             doneAt
+            activities {
+              id
+              description
+              newValue
+              oldValue
+              updatedBy {
+                id
+                username
+                email
+              }
+              action
+              updatedAt
+            }
             currentStatus {
               id
               name
@@ -241,6 +271,14 @@ export const GET_PROJECT_DETAIL = gql`
             attachments {
               id
               files
+            }
+            metric {
+              id
+              lastStatusChangeAt
+              leadTime
+              statusChanges
+              timeSpentSeconds
+              cycleTime
             }
           }
         }
@@ -279,6 +317,7 @@ export const GET_PROJECT_BOARD = gql`
             description
             priority
             dueDate
+            isClosed
             milestone {
               id
               name
@@ -286,6 +325,7 @@ export const GET_PROJECT_BOARD = gql`
             currentStatus {
               id
               name
+              isClosed
             }
             assignments {
               id

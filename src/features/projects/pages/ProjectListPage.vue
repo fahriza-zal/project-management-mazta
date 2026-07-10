@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/features/projects/stores/project'
+import { useAuthStore } from '@/features/auth/stores/auth'
 import { useToast } from '@/shared/composables/useToast'
 import { formatDate } from '@/shared/utils/format'
 import {
@@ -16,6 +17,7 @@ import {
   FolderPlusIcon,
   LockClosedIcon,
   LockOpenIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
@@ -32,8 +34,14 @@ const DEBOUNCE_MS = 300
 
 const router = useRouter()
 const store = useProjectStore()
+const auth = useAuthStore()
 const { items, pagination, loading } = storeToRefs(store)
 const { success, error: toastError } = useToast()
+
+/** Unit ids of the signed-in employee (from `pm_profile` → employee.units). */
+const myUnitIds = computed(() =>
+  (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean),
+)
 
 const search = ref('')
 const view = ref('table') // table | card
@@ -84,21 +92,41 @@ function statusColor(status) {
 }
 
 const columns = [
-  { key: 'fullCode', label: 'Code', width: '130px' },
   { key: 'name', label: 'Project' },
-  { key: 'category', label: 'Category' },
-  { key: 'mode', label: 'Mode' },
-  { key: 'units', label: 'Units' },
-  { key: 'expectedEndDate', label: 'Expected End' },
+  { key: 'category', label: 'Category', width: '116px' },
+  { key: 'mode', label: 'Mode', width: '104px' },
+  { key: 'progress', label: 'Progress', width: '150px' },
+  { key: 'health', label: 'Health', width: '72px' },
+  { key: 'units', label: 'Units', width: '184px' },
+  { key: 'expectedEndDate', label: 'Expected End', width: '116px' },
 ]
 
 function unitNames(project) {
   return (project.projectUnits ?? []).map((pu) => pu.unit?.name).filter(Boolean)
 }
 
+// ── Metric helpers (from the project's computed `metric` block) ───────────────
+const round = (v) => Math.round(Number(v) || 0)
+const progressOf = (project) => round(project.metric?.progress)
+const healthOf = (project) => round(project.metric?.healthScore)
+const overdueOf = (project) => Number(project.metric?.overdueTasks) || 0
+
+/** Score 0–100 → BaseBadge color (`invert` for risk, where high is bad). */
+function scoreColor(value, invert = false) {
+  const v = Number(value) || 0
+  if (invert ? v < 34 : v >= 67) return 'success'
+  if (invert ? v >= 67 : v < 34) return 'danger'
+  return 'warning'
+}
+
 function load() {
   return store
-    .fetchProjects({ page: page.value, pageSize: PAGE_SIZE, search: search.value.trim() || null })
+    .fetchProjects({
+      page: page.value,
+      pageSize: PAGE_SIZE,
+      search: search.value.trim() || null,
+      unitIds: myUnitIds.value,
+    })
     .catch((err) => toastError(err.message))
 }
 
@@ -203,6 +231,7 @@ async function loadEnum(typeName, target) {
 }
 
 onMounted(() => {
+  auth.hydrate() // ensure employee.units is available for the unit filter
   load()
   loadEnum('ProjectCategoryChoices', categoryOptions)
   loadEnum('ProjectModeChoices', modeOptions)
@@ -285,15 +314,19 @@ onMounted(() => {
 
     <!-- Table view -->
     <BaseCard v-else-if="view === 'table'" :padded="false">
-      <BaseTable :columns="columns" :rows="items" @row-click="openDetail($event.id)">
-        <template #cell-fullCode="{ row }">
-          <span class="font-mono text-xs text-slate-500">{{ row.fullCode || row.prefix }}</span>
-        </template>
+      <BaseTable
+        :columns="columns"
+        :rows="items"
+        fixed
+        actions-width="124px"
+        @row-click="openDetail($event.id)"
+      >
         <template #cell-name="{ row }">
-          <div class="flex items-center gap-1.5">
+          <span class="font-mono text-[11px] text-slate-400">{{ row.fullCode || row.prefix }}</span>
+          <div class="flex items-start gap-1.5">
             <LockClosedIcon
               v-if="row.isLocked"
-              class="h-3.5 w-3.5 shrink-0 text-amber-500"
+              class="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
               title="Terkunci"
             />
             <p class="font-medium text-slate-800">{{ row.name }}</p>
@@ -303,22 +336,55 @@ onMounted(() => {
           </p>
         </template>
         <template #cell-category="{ row }">
-          {{ labelFor(categoryOptions, row.projectCategory) }}
+          <span class="block truncate">{{ labelFor(categoryOptions, row.projectCategory) }}</span>
         </template>
         <template #cell-mode="{ row }">
-          {{ labelFor(modeOptions, row.projectMode) }}
+          <span class="block truncate">{{ labelFor(modeOptions, row.projectMode) }}</span>
+        </template>
+        <template #cell-progress="{ row }">
+          <div v-if="row.metric" class="w-full">
+            <div class="flex items-center gap-2">
+              <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  class="bg-brand h-full rounded-full transition-all"
+                  :style="{ width: progressOf(row) + '%' }"
+                />
+              </div>
+              <span class="w-9 text-right text-xs font-semibold text-slate-600">
+                {{ progressOf(row) }}%
+              </span>
+            </div>
+            <p
+              v-if="overdueOf(row) > 0"
+              class="mt-1 flex items-center gap-1 text-[11px] font-medium text-danger"
+            >
+              <ExclamationTriangleIcon class="h-3 w-3 shrink-0" />
+              {{ overdueOf(row) }} overdue
+            </p>
+          </div>
+          <span v-else class="text-xs text-slate-400">—</span>
+        </template>
+        <template #cell-health="{ row }">
+          <BaseBadge v-if="row.metric" :color="scoreColor(healthOf(row))" size="sm">
+            {{ healthOf(row) }}
+          </BaseBadge>
+          <span v-else class="text-xs text-slate-400">—</span>
         </template>
         <template #cell-units="{ row }">
           <div class="flex flex-wrap gap-1">
-            <BaseBadge v-for="name in unitNames(row)" :key="name" color="info" size="sm">
+            <span
+              v-for="name in unitNames(row)"
+              :key="name"
+              class="rounded-sm bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-blue-600"
+            >
               {{ name }}
-            </BaseBadge>
+            </span>
             <span v-if="!unitNames(row).length" class="text-xs text-slate-400">—</span>
           </div>
         </template>
         <template #cell-expectedEndDate="{ row }">{{ formatDate(row.expectedEndDate) }}</template>
         <template #row-actions="{ row }">
-          <div class="flex items-center justify-end gap-1">
+          <div class="flex justify-end">
             <BaseButton
               variant="ghost"
               size="sm"
@@ -428,6 +494,28 @@ onMounted(() => {
         <p class="mt-3 line-clamp-2 min-h-[2.5rem] text-sm text-slate-500">
           {{ project.description || 'No description.' }}
         </p>
+
+        <!-- Metric summary -->
+        <div v-if="project.metric" class="mt-3">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-slate-500">Progress</span>
+            <span class="font-semibold text-slate-700">{{ progressOf(project) }}%</span>
+          </div>
+          <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div
+              class="bg-brand h-full rounded-full"
+              :style="{ width: progressOf(project) + '%' }"
+            />
+          </div>
+          <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <BaseBadge :color="scoreColor(healthOf(project))" size="sm">
+              Health {{ healthOf(project) }}
+            </BaseBadge>
+            <BaseBadge v-if="overdueOf(project) > 0" color="danger" size="sm">
+              {{ overdueOf(project) }} overdue
+            </BaseBadge>
+          </div>
+        </div>
 
         <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           <!-- Units involved — initials in circles -->

@@ -66,17 +66,27 @@ export const useProjectStore = defineStore('project', () => {
 
   /**
    * Fetch a page of projects (detailed shape for the table + kanban).
-   * @param {{ page?: number, pageSize?: number, search?: string }} [params]
+   * `unitIds` scopes the list to the signed-in employee's units (ids from
+   * `pm_profile` → employee.units). Empty/none → sent as null (no unit filter).
+   * @param {{ page?: number, pageSize?: number, search?: string, unitIds?: number[] }} [params]
    */
-  async function fetchProjects({ page = null, pageSize = null, search = null } = {}) {
+  async function fetchProjects({
+    page = null,
+    pageSize = null,
+    search = null,
+    unitIds = null,
+  } = {}) {
     loading.value = true
     error.value = ''
     try {
       const { data } = await apolloClient.query({
         query: LIST_PROJECTS,
-        variables: { params: { page, pageSize, search } },
+        variables: {
+          params: { page, pageSize, search, unitIds: unitIds?.length ? unitIds : null },
+        },
         fetchPolicy: 'network-only',
       })
+      
       const result = data?.listProject?.data
       items.value = result?.results ?? []
       pagination.value = {
@@ -137,14 +147,21 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  /** Fetch a single project by id via a given query (default: the full GET_PROJECT). */
+  /**
+   * Fetch a single project by id via a given query (default: the full GET_PROJECT).
+   *
+   * Uses `no-cache` (not `network-only`): the response is returned exactly as the
+   * server sends it, without a round-trip through the InMemoryCache. Nested computed
+   * objects like `metric` (no stable `id`) can get dropped on cache read-back, which
+   * made the metric panel render empty even though the raw query returns data.
+   */
   async function fetchProjectWith(query, id) {
     error.value = ''
     try {
       const { data } = await apolloClient.query({
         query,
         variables: { getProjectId: Number(id) },
-        fetchPolicy: 'network-only',
+        fetchPolicy: 'no-cache',
       })
       return data?.getProject?.data ?? null
     } catch (err) {

@@ -1,5 +1,5 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/shared/stores/ui'
 import { SIDEBAR_NAV } from '@/shared/constants/navigation'
@@ -14,6 +14,19 @@ const emit = defineEmits(['logout', 'navigate'])
 
 const ui = useUiStore()
 const { sidebarCollapsed } = storeToRefs(ui)
+const route = useRoute()
+
+/**
+ * Whether a nav item should render as active.
+ * Detail/edit/board routes (e.g. /transaction/project/:id) are siblings of the
+ * list route in the router — not nested — so RouterLink's `isActive` is false on
+ * them and the parent menu de-highlights. Treat any path *under* the item's path
+ * as active too. Dashboard ('/') stays exact-match so it doesn't win everywhere.
+ */
+function itemActive(item, href, isActive, isExactActive) {
+  if (item.to.name === 'dashboard') return isExactActive
+  return isActive || route.path === href || route.path.startsWith(href + '/')
+}
 </script>
 
 <template>
@@ -23,7 +36,9 @@ const { sidebarCollapsed } = storeToRefs(ui)
   >
     <!-- Brand -->
     <div class="flex h-16 items-center gap-2.5 border-b border-white/50 px-5">
-      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-glow">
+      <div
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white shadow-glow"
+      >
         <CubeIcon class="h-5 w-5" />
       </div>
       <div v-if="mobile || !sidebarCollapsed" class="overflow-hidden">
@@ -34,7 +49,12 @@ const { sidebarCollapsed } = storeToRefs(ui)
 
     <!-- Nav -->
     <nav class="flex-1 overflow-y-auto py-4">
-      <div v-for="(group, gi) in SIDEBAR_NAV" :key="gi" class="space-y-1" :class="gi > 0 ? 'mt-6' : ''">
+      <div
+        v-for="(group, gi) in SIDEBAR_NAV"
+        :key="gi"
+        class="space-y-1"
+        :class="gi > 0 ? 'mt-6' : ''"
+      >
         <!-- Group header (hidden when collapsed; falls back to a divider) -->
         <p
           v-if="group.title && (mobile || !sidebarCollapsed)"
@@ -60,15 +80,22 @@ const { sidebarCollapsed } = storeToRefs(ui)
               :href="href"
               class="group flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors"
               :class="[
-                (item.to.name === 'dashboard' ? isExactActive : isActive)
+                itemActive(item, href, isActive, isExactActive)
                   ? 'mx-2 rounded-xl bg-brand text-white shadow-glow'
                   : 'mx-2 rounded-xl text-slate-600 hover:bg-white/70 hover:text-slate-900',
                 !mobile && sidebarCollapsed ? 'justify-center' : '',
               ]"
-              @click="(e) => { navigate(e); emit('navigate') }"
+              @click="
+                (e) => {
+                  navigate(e)
+                  emit('navigate')
+                }
+              "
             >
               <component :is="item.icon" class="h-5 w-5 shrink-0" />
-              <span v-if="mobile || !sidebarCollapsed" class="truncate whitespace-nowrap">{{ item.name }}</span>
+              <span v-if="mobile || !sidebarCollapsed" class="truncate whitespace-nowrap">{{
+                item.name
+              }}</span>
             </a>
           </RouterLink>
         </BaseTooltip>
@@ -83,7 +110,10 @@ const { sidebarCollapsed } = storeToRefs(ui)
         :class="sidebarCollapsed ? 'justify-center' : ''"
         @click="ui.toggleSidebar()"
       >
-        <ChevronLeftIcon class="h-5 w-5 shrink-0 transition-transform" :class="sidebarCollapsed ? 'rotate-180' : ''" />
+        <ChevronLeftIcon
+          class="h-5 w-5 shrink-0 transition-transform"
+          :class="sidebarCollapsed ? 'rotate-180' : ''"
+        />
         <span v-if="!sidebarCollapsed">Collapse</span>
       </button>
     </div>

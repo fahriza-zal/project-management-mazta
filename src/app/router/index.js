@@ -84,12 +84,6 @@ const routes = [
         component: () => import('@/features/account/pages/ProfilePage.vue'),
         meta: { title: 'Profile', breadcrumb: ['Profile'] },
       },
-      {
-        path: 'settings',
-        name: 'settings',
-        component: () => import('@/features/account/pages/SettingsPage.vue'),
-        meta: { title: 'Settings', breadcrumb: ['Settings'] },
-      },
     ],
   },
   {

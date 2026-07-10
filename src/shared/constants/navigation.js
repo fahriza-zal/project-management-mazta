@@ -11,8 +11,7 @@ import {
 /**
  * Primary sidebar navigation, grouped by section.
  * A group without a `title` renders its items without a header.
- * Profile & Settings are intentionally not here — they live in the navbar
- * user dropdown instead.
+ * Profile is intentionally not here — it lives in the navbar user dropdown instead.
  */
 export const SIDEBAR_NAV = [
   {

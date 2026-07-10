@@ -34,6 +34,7 @@ import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 import ConfirmDialog from '@/shared/components/base/ConfirmDialog.vue'
 import TaskAssignModal from '@/features/projects/components/TaskAssignModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
+import ProjectMetricPanel from '@/features/projects/components/ProjectMetricPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -142,6 +143,12 @@ const allTasks = computed(() =>
 )
 
 const isTaskDone = (t) => !!(t.isClosed || t.currentStatus?.isClosed || t.doneAt)
+
+/**
+ * Milestone has no `isClosed` of its own — treat it as done when it has tasks and
+ * every one is closed. (A milestone with no tasks is not "done".)
+ */
+const isMilestoneDone = (m) => !!(m?.tasks?.length && m.tasks.every(isTaskDone))
 
 const taskCount = computed(() => allTasks.value.length)
 const doneTaskCount = computed(() => allTasks.value.filter(isTaskDone).length)
@@ -448,6 +455,9 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- ── Project metrics (headline computed metric) ──────────────────── -->
+      <ProjectMetricPanel :metric="project.metric" />
+
       <!-- ── Main + sidebar ──────────────────────────────────────────────── -->
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <!-- Left · tabs -->
@@ -533,14 +543,25 @@ onMounted(async () => {
                         <p class="truncate text-sm font-semibold text-slate-800">{{ m.name }}</p>
                         <p class="text-caption">{{ m.tasks?.length || 0 }} tasks</p>
                       </div>
-                      <div class="hidden w-40 items-center gap-2 sm:flex">
-                        <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            class="h-full rounded-full bg-primary-500"
-                            :style="{ width: mProgress(m) + '%' }"
-                          />
+
+                      <div class="hidden w-40 flex-col gap-1 sm:flex">
+                        <div class="flex items-center gap-2">
+                          <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              class="h-full rounded-full bg-primary-500"
+                              :style="{ width: mProgress(m) + '%' }"
+                            />
+                          </div>
+                          <span class="text-caption w-8 text-right">{{ mProgress(m) }}%</span>
                         </div>
-                        <span class="text-caption w-8 text-right">{{ mProgress(m) }}%</span>
+                        <!-- Plain "Selesai" note under the progress — every task is done -->
+                        <span
+                          v-if="isMilestoneDone(m)"
+                          class="flex items-center justify-end gap-1 text-[11px] font-bold uppercase tracking-wide text-emerald-600"
+                        >
+                          <CheckCircleIcon class="h-3.5 w-3.5" />
+                          Selesai
+                        </span>
                       </div>
                       <ChevronUpIcon
                         v-if="!collapsed[m.id]"
@@ -694,184 +715,207 @@ onMounted(async () => {
                       <div
                         v-for="t in m.tasks"
                         :key="t.id"
-                        class="rounded-xl border border-slate-100 bg-white/70 p-3"
+                        class="relative overflow-hidden rounded-xl border border-slate-100 bg-white/70 p-3"
+                        :class="isTaskDone(t) ? 'border-emerald-200 bg-emerald-50/60' : ''"
                       >
-                        <div class="flex items-start justify-between gap-2">
-                          <p class="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                            <LockClosedIcon v-if="t.isLocked" class="h-3.5 w-3.5 text-amber-500" />
-                            {{ t.title }}
-                          </p>
-                          <div class="flex shrink-0 items-center gap-1">
-                            <button
-                              type="button"
-                              class="rounded-lg p-1 transition"
-                              :class="
-                                t.isLocked
-                                  ? 'text-amber-500 hover:bg-amber-100'
-                                  : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'
-                              "
-                              :title="t.isLocked ? 'Buka kunci task' : 'Kunci task'"
-                              @click.stop="requestTaskLock(t)"
-                            >
-                              <LockOpenIcon v-if="t.isLocked" class="h-4 w-4" />
-                              <LockClosedIcon v-else class="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
-                              title="Assign employees"
-                              @click.stop="openAssign(t)"
-                            >
-                              <UserPlusIcon class="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- badges -->
-                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                          <BaseBadge v-if="t.taskType" color="primary" size="sm">
-                            {{ humanize(t.taskType) }}
-                          </BaseBadge>
-                          <BaseBadge v-if="t.priority" :color="priorityColor(t.priority)" size="sm">
-                            {{ humanize(t.priority) }} Priority
-                          </BaseBadge>
-                          <BaseBadge
-                            v-if="t.currentStatus?.name"
-                            :color="taskStatusColor(t.currentStatus.name)"
-                            size="sm"
-                          >
-                            {{ humanize(t.currentStatus.name) }}
-                          </BaseBadge>
-                          <span v-if="t.estimatedSeconds" class="text-caption">
-                            Est: {{ secondsToHm(t.estimatedSeconds) }}
-                          </span>
-                        </div>
-
-                        <!-- footer: assignees -->
-                        <div class="mt-2.5 flex items-center gap-2">
-                          <span class="text-caption">Assigned to</span>
-                          <div v-if="t.assignments?.length" class="flex -space-x-1.5">
-                            <BaseAvatar
-                              v-for="a in t.assignments"
-                              :key="a.id"
-                              :name="a.employee?.fullName || '?'"
-                              size="xs"
-                            />
-                          </div>
-                          <span v-else class="text-caption italic">Unassigned</span>
-                        </div>
-
-                        <!-- task metrics -->
-                        <div
-                          v-if="t.metric"
-                          class="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3"
+                        <!-- "Selesai" watermark filling the card background when done -->
+                        <span
+                          v-if="isTaskDone(t)"
+                          class="pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center text-4xl font-black uppercase tracking-[0.35em] text-emerald-500/10 sm:text-5xl"
                         >
-                          <span
-                            v-if="t.metric.timeSpentSeconds"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-700"
-                          >
-                            <ClockIcon class="h-3.5 w-3.5" />
-                            <span class="font-medium">Time Spent</span>
-                            <span class="font-bold">{{
-                              secondsToHm(t.metric.timeSpentSeconds)
-                            }}</span>
-                          </span>
-                          <span
-                            v-if="t.metric.cycleTime"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-700"
-                          >
-                            <ArrowPathIcon class="h-3.5 w-3.5" />
-                            <span class="font-medium">Cycle</span>
-                            <span class="font-bold">{{
-                              secondsToDuration(t.metric.cycleTime)
-                            }}</span>
-                          </span>
-                          <span
-                            v-if="t.metric.leadTime"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700"
-                          >
-                            <ArrowTrendingUpIcon class="h-3.5 w-3.5" />
-                            <span class="font-medium">Lead</span>
-                            <span class="font-bold">{{
-                              secondsToDuration(t.metric.leadTime)
-                            }}</span>
-                          </span>
-                          <span
-                            v-if="t.metric.statusChanges != null"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
-                          >
-                            <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
-                            <span class="font-medium">Moves</span>
-                            <span class="font-bold">{{ t.metric.statusChanges }}</span>
-                          </span>
-                          <span
-                            v-if="t.metric.lastStatusChangeAt"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
-                          >
-                            <CalendarDaysIcon class="h-3.5 w-3.5" />
-                            <span class="font-medium">Last</span>
-                            <span class="font-bold">{{
-                              formatDate(t.metric.lastStatusChangeAt)
-                            }}</span>
-                          </span>
-                        </div>
+                          Selesai
+                        </span>
 
-                        <!-- task activity history -->
-                        <div
-                          v-if="t.activities?.length"
-                          class="mt-3 border-t border-slate-100 pt-3"
-                        >
-                          <button
-                            type="button"
-                            class="flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700"
-                            @click.stop="toggleActivity(t.id)"
-                          >
-                            <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
-                            Activity History ({{ t.activities.length }})
-                            <ChevronUpIcon v-if="activityOpen[t.id]" class="h-3.5 w-3.5" />
-                            <ChevronDownIcon v-else class="h-3.5 w-3.5" />
-                          </button>
-
-                          <ol v-if="activityOpen[t.id]" class="mt-2.5 space-y-3">
-                            <li
-                              v-for="a in taskActivities(t)"
-                              :key="a.id"
-                              class="relative flex gap-2.5 pl-1"
+                        <!-- Content sits above the watermark; the card stays fully interactive -->
+                        <div class="relative z-10">
+                          <div class="flex items-start justify-between gap-2">
+                            <p
+                              class="flex items-center gap-1.5 text-sm font-semibold text-slate-800"
                             >
-                              <span
-                                class="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400 ring-2 ring-primary-100"
+                              <LockClosedIcon
+                                v-if="t.isLocked"
+                                class="h-3.5 w-3.5 text-amber-500"
                               />
-                              <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-1.5">
-                                  <BaseBadge
-                                    v-if="a.action"
-                                    :color="activityActionColor(a.action)"
-                                    size="sm"
-                                  >
-                                    {{ humanize(a.action) }}
-                                  </BaseBadge>
-                                  <span v-if="a.updatedAt" class="text-caption">
-                                    {{
-                                      formatDate(a.updatedAt, {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })
-                                    }}
-                                  </span>
-                                </div>
-                                <p class="mt-1 text-xs leading-relaxed text-slate-600">
-                                  {{ a.description || 'Task updated' }}
-                                </p>
-                                <p v-if="activityActor(a)" class="text-caption mt-0.5">
-                                  by {{ activityActor(a) }}
-                                </p>
-                              </div>
-                            </li>
-                          </ol>
-                        </div>
+                              {{ t.title }}
+                            </p>
+                            <div class="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                class="rounded-lg p-1 transition disabled:cursor-not-allowed disabled:opacity-40"
+                                :class="
+                                  t.isLocked
+                                    ? 'text-amber-500 hover:bg-amber-100'
+                                    : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'
+                                "
+                                :disabled="isTaskDone(t)"
+                                :title="t.isLocked ? 'Buka kunci task' : 'Kunci task'"
+                                @click.stop="requestTaskLock(t)"
+                              >
+                                <LockOpenIcon v-if="t.isLocked" class="h-4 w-4" />
+                                <LockClosedIcon v-else class="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="isTaskDone(t)"
+                                title="Assign employees"
+                                @click.stop="openAssign(t)"
+                              >
+                                <UserPlusIcon class="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
 
-                        <!-- comments thread -->
-                        <TaskComments :task="t" @saved="loadProject" />
+                          <!-- badges -->
+                          <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            <BaseBadge v-if="t.taskType" color="primary" size="sm">
+                              {{ humanize(t.taskType) }}
+                            </BaseBadge>
+                            <BaseBadge
+                              v-if="t.priority"
+                              :color="priorityColor(t.priority)"
+                              size="sm"
+                            >
+                              {{ humanize(t.priority) }} Priority
+                            </BaseBadge>
+                            <BaseBadge
+                              v-if="t.currentStatus?.name"
+                              :color="taskStatusColor(t.currentStatus.name)"
+                              size="sm"
+                            >
+                              {{ humanize(t.currentStatus.name) }}
+                            </BaseBadge>
+                            <span v-if="t.estimatedSeconds" class="text-caption">
+                              Est: {{ secondsToHm(t.estimatedSeconds) }}
+                            </span>
+                          </div>
+
+                          <!-- footer: assignees -->
+                          <div class="mt-2.5 flex items-center gap-2">
+                            <span class="text-caption">Assigned to</span>
+                            <div v-if="t.assignments?.length" class="flex -space-x-1.5">
+                              <BaseAvatar
+                                v-for="a in t.assignments"
+                                :key="a.id"
+                                :name="a.employee?.fullName || '?'"
+                                size="xs"
+                              />
+                            </div>
+                            <span v-else class="text-caption italic">Unassigned</span>
+                          </div>
+
+                          <!-- task metrics -->
+                          <div
+                            v-if="t.metric"
+                            class="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3"
+                          >
+                            <span
+                              v-if="t.metric.timeSpentSeconds"
+                              class="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-700"
+                            >
+                              <ClockIcon class="h-3.5 w-3.5" />
+                              <span class="font-medium">Time Spent</span>
+                              <span class="font-bold">{{
+                                secondsToHm(t.metric.timeSpentSeconds)
+                              }}</span>
+                            </span>
+                            <span
+                              v-if="t.metric.cycleTime"
+                              class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-700"
+                            >
+                              <ArrowPathIcon class="h-3.5 w-3.5" />
+                              <span class="font-medium">Cycle</span>
+                              <span class="font-bold">{{
+                                secondsToDuration(t.metric.cycleTime)
+                              }}</span>
+                            </span>
+                            <span
+                              v-if="t.metric.leadTime"
+                              class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700"
+                            >
+                              <ArrowTrendingUpIcon class="h-3.5 w-3.5" />
+                              <span class="font-medium">Lead</span>
+                              <span class="font-bold">{{
+                                secondsToDuration(t.metric.leadTime)
+                              }}</span>
+                            </span>
+                            <span
+                              v-if="t.metric.statusChanges != null"
+                              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
+                            >
+                              <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
+                              <span class="font-medium">Moves</span>
+                              <span class="font-bold">{{ t.metric.statusChanges }}</span>
+                            </span>
+                            <span
+                              v-if="t.metric.lastStatusChangeAt"
+                              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
+                            >
+                              <CalendarDaysIcon class="h-3.5 w-3.5" />
+                              <span class="font-medium">Last</span>
+                              <span class="font-bold">{{
+                                formatDate(t.metric.lastStatusChangeAt)
+                              }}</span>
+                            </span>
+                          </div>
+
+                          <!-- task activity history -->
+                          <div
+                            v-if="t.activities?.length"
+                            class="mt-3 border-t border-slate-100 pt-3"
+                          >
+                            <button
+                              type="button"
+                              class="flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700"
+                              @click.stop="toggleActivity(t.id)"
+                            >
+                              <ArrowsRightLeftIcon class="h-3.5 w-3.5" />
+                              Activity History ({{ t.activities.length }})
+                              <ChevronUpIcon v-if="activityOpen[t.id]" class="h-3.5 w-3.5" />
+                              <ChevronDownIcon v-else class="h-3.5 w-3.5" />
+                            </button>
+
+                            <ol v-if="activityOpen[t.id]" class="mt-2.5 space-y-3">
+                              <li
+                                v-for="a in taskActivities(t)"
+                                :key="a.id"
+                                class="relative flex gap-2.5 pl-1"
+                              >
+                                <span
+                                  class="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-400 ring-2 ring-primary-100"
+                                />
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex flex-wrap items-center gap-1.5">
+                                    <BaseBadge
+                                      v-if="a.action"
+                                      :color="activityActionColor(a.action)"
+                                      size="sm"
+                                    >
+                                      {{ humanize(a.action) }}
+                                    </BaseBadge>
+                                    <span v-if="a.updatedAt" class="text-caption">
+                                      {{
+                                        formatDate(a.updatedAt, {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })
+                                      }}
+                                    </span>
+                                  </div>
+                                  <p class="mt-1 text-xs leading-relaxed text-slate-600">
+                                    {{ a.description || 'Task updated' }}
+                                  </p>
+                                  <p v-if="activityActor(a)" class="text-caption mt-0.5">
+                                    by {{ activityActor(a) }}
+                                  </p>
+                                </div>
+                              </li>
+                            </ol>
+                          </div>
+
+                          <!-- comments thread -->
+                          <TaskComments :task="t" @saved="loadProject" />
+                        </div>
                       </div>
                       <p v-if="!m.tasks?.length" class="text-xs text-slate-400">
                         No tasks in this milestone.

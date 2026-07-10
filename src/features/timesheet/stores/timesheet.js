@@ -34,15 +34,23 @@ export const useTimesheetStore = defineStore('timesheet', () => {
 
   /**
    * Fetch a page of timesheets. Defensive against a not-yet-final list shape.
-   * @param {{ page?: number, pageSize?: number, search?: string }} [params]
+   * `workDateGte` / `workDateLte` filter by work date (inclusive), each a
+   * `'yyyy-MM-dd'` string or null.
+   * @param {{ page?: number, pageSize?: number, search?: string, workDateGte?: string|null, workDateLte?: string|null }} [params]
    */
-  async function fetchList({ page = null, pageSize = null, search = null } = {}) {
+  async function fetchList({
+    page = null,
+    pageSize = null,
+    search = null,
+    workDateGte = null,
+    workDateLte = null,
+  } = {}) {
     loading.value = true
     error.value = ''
     try {
       const { data } = await apolloClient.query({
         query: LIST_TIMESHEET,
-        variables: { params: { page, pageSize, search } },
+        variables: { params: { page, pageSize, search, workDateGte, workDateLte } },
         fetchPolicy: 'network-only',
       })
 

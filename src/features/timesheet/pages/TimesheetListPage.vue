@@ -16,6 +16,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
+import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseModal from '@/shared/components/base/BaseModal.vue'
@@ -35,9 +36,21 @@ const { success, error: toastError } = useToast()
 auth.hydrate()
 const employeeName = computed(() => auth.employee?.fullName || '')
 
+/** Today as a local `'yyyy-MM-dd'` string (matches BaseDatePicker's model type). */
+function todayStr() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 const search = ref('')
+// Default the range filter to today → today.
+const workDateGte = ref(todayStr())
+const workDateLte = ref(todayStr())
 const page = ref(1)
 let searchTimer = null
+
+const hasDateFilter = computed(() => !!(workDateGte.value || workDateLte.value))
 
 /* -------------------------------------------------------------------------- */
 /* Status helpers — status comes from the sheet's top-level `status`, falling   */
@@ -215,7 +228,13 @@ function toggleExpand(id) {
 /* --- Data loading --- */
 function load() {
   return store
-    .fetchList({ page: page.value, pageSize: PAGE_SIZE, search: search.value.trim() || null })
+    .fetchList({
+      page: page.value,
+      pageSize: PAGE_SIZE,
+      search: search.value.trim() || null,
+      workDateGte: workDateGte.value || null,
+      workDateLte: workDateLte.value || null,
+    })
     .catch((err) => toastError(err.message))
 }
 
@@ -225,6 +244,20 @@ function onSearch() {
     page.value = 1
     load()
   }, DEBOUNCE_MS)
+}
+
+/** Reload from page 1 whenever the date range changes. */
+function onDateFilter() {
+  page.value = 1
+  load()
+}
+
+/** Clear both date bounds and reload. */
+function clearDateFilter() {
+  if (!hasDateFilter.value) return
+  workDateGte.value = ''
+  workDateLte.value = ''
+  onDateFilter()
 }
 
 function onPageChange(p) {
@@ -320,7 +353,13 @@ async function confirmAction() {
     // already succeeded — don't surface a list-refetch error over it). Once fresh
     // data arrives, drop the optimistic overrides so server status is authoritative.
     store
-      .fetchList({ page: page.value, pageSize: PAGE_SIZE, search: search.value.trim() || null })
+      .fetchList({
+        page: page.value,
+        pageSize: PAGE_SIZE,
+        search: search.value.trim() || null,
+        workDateGte: workDateGte.value || null,
+        workDateLte: workDateLte.value || null,
+      })
       .then(() => {
         stateOverride.value = {}
       })
@@ -376,10 +415,38 @@ onMounted(load)
     </div>
 
     <!-- Toolbar -->
-    <div class="w-full sm:max-w-xs">
-      <BaseInput v-model="search" placeholder="Cari timesheet…" @update:model-value="onSearch">
-        <template #prefix><MagnifyingGlassIcon class="h-4 w-4" /></template>
-      </BaseInput>
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <div class="w-full sm:max-w-xs">
+        <BaseInput v-model="search" placeholder="Cari timesheet…" @update:model-value="onSearch">
+          <template #prefix><MagnifyingGlassIcon class="h-4 w-4" /></template>
+        </BaseInput>
+      </div>
+      <!-- Work-date range filter (workDateGte / workDateLte) -->
+      <div class="w-full sm:w-40">
+        <BaseDatePicker
+          v-model="workDateGte"
+          label="Dari tanggal"
+          placeholder="Mulai"
+          @update:model-value="onDateFilter"
+        />
+      </div>
+      <div class="w-full sm:w-40">
+        <BaseDatePicker
+          v-model="workDateLte"
+          label="Sampai tanggal"
+          placeholder="Selesai"
+          @update:model-value="onDateFilter"
+        />
+      </div>
+      <BaseButton
+        v-if="hasDateFilter"
+        variant="outline"
+        size="sm"
+        type="button"
+        @click="clearDateFilter"
+      >
+        Reset tanggal
+      </BaseButton>
     </div>
 
     <!-- Content -->

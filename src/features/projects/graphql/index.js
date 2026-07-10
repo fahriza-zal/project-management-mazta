@@ -157,6 +157,29 @@ export const GET_PROJECT_DETAIL = gql`
         isClosed
         isLocked
         createdAt
+        metric {
+          activeMembers
+          actualSeconds
+          averageCycleTime
+          averageLeadTime
+          averageTaskPerMember
+          calculatedAt
+          completedLate
+          completedMilestones
+          completedOnTime
+          completedTasks
+          completionRate
+          efficiency
+          estimatedSeconds
+          healthScore
+          overdueTasks
+          progress
+          projectAgeDays
+          riskScore
+          scheduleVariance
+          throughput
+          totalAttachments
+        }
         createdBy {
           id
           username
@@ -317,7 +340,6 @@ export const GET_PROJECT_BOARD = gql`
             description
             priority
             dueDate
-            isClosed
             milestone {
               id
               name
@@ -399,6 +421,14 @@ export const LIST_PROJECTS = gql`
           projectMode
           projectCategory
           isLocked
+          metric {
+            progress
+            healthScore
+            riskScore
+            completionRate
+            completedTasks
+            overdueTasks
+          }
           projectUnits {
             id
             unit {

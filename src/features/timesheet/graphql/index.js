@@ -48,7 +48,9 @@ export const CREATE_TIMESHEET = gql`
 `
 
 /**
- * Paginated list of timesheets. Variables: { params: TimeSheetParams } — { page, pageSize, search }.
+ * Paginated list of timesheets. Variables: { params: TimeSheetParams } —
+ * { page, pageSize, search, workDateGte, workDateLte } (the two work-date bounds
+ * are inclusive `'yyyy-MM-dd'` strings that filter the list by work date).
  * `task` is a union — either a project `Task` or a `DefaultTask`, both exposing { id, title }.
  * `activities` carries the per-timesheet status + description entries.
  */

@@ -20,6 +20,8 @@ import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
 const props = defineProps({
   columns: { type: Array, default: () => [] }, // [{ id, name, accent }]
   tasks: { type: Array, default: () => [] }, // flattened project tasks
+  canCreate: { type: Boolean, default: true }, // show the per-column add button
+  canMove: { type: Boolean, default: true }, // allow drag & drop between columns
 })
 const emit = defineEmits(['status-change', 'add', 'comment'])
 
@@ -100,6 +102,7 @@ function onDrop(statusId) {
           </span>
         </div>
         <button
+          v-if="canCreate"
           class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
           title="Add task"
           @click="emit('add', col.id)"
@@ -124,13 +127,14 @@ function onDrop(statusId) {
         <article
           v-for="task in grouped[col.id] || []"
           :key="task.id"
-          draggable="true"
-          class="cursor-grab rounded-xl border p-3.5 shadow-soft transition active:cursor-grabbing"
-          :class="
+          :draggable="canMove"
+          class="rounded-xl border p-3.5 shadow-soft transition"
+          :class="[
+            canMove ? 'cursor-grab active:cursor-grabbing' : '',
             isOverdue(task)
               ? 'border-red-300 bg-red-50/70 hover:border-red-400'
-              : 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-card-hover'
-          "
+              : 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-card-hover',
+          ]"
           @dragstart="onDragStart(task, $event)"
         >
           <div class="mb-2 flex items-start justify-between gap-2">

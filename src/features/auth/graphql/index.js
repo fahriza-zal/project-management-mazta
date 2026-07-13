@@ -16,6 +16,7 @@ export const LOGIN = gql`
           isActive
           isSuperuser
           isStaff
+          userPermissions
         }
         employee {
           id
@@ -29,6 +30,16 @@ export const LOGIN = gql`
             name
           }
         }
+      }
+    }
+  }
+`
+
+export const LOGOUT = gql`
+  mutation Logout {
+    logout {
+      data {
+        success
       }
     }
   }

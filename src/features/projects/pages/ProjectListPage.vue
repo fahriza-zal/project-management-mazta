@@ -4,6 +4,7 @@ import { useRouter, RouterLink } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/features/projects/stores/project'
 import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import { formatDate } from '@/shared/utils/format'
 import {
@@ -176,6 +177,11 @@ function requestLock(project) {
   lockState.value = { open: true, project, loading: false }
 }
 
+/** Whether the current user may toggle this project's lock (unlock vs lock op). */
+function canToggleLock(project) {
+  return project.isLocked ? auth.can(PERM.UNLOCK) : auth.can(PERM.LOCK)
+}
+
 async function confirmLock() {
   const p = lockState.value.project
   if (!p) {
@@ -246,7 +252,7 @@ onMounted(() => {
         <h1 class="text-heading">Projects</h1>
         <p class="text-body mt-1">{{ pagination.count }} project(s) found</p>
       </div>
-      <RouterLink :to="{ name: 'project-create' }">
+      <RouterLink v-if="auth.can(PERM.CREATE)" :to="{ name: 'project-create' }">
         <BaseButton variant="primary">
           <PlusIcon class="h-4 w-4" />
           Create Project
@@ -305,7 +311,7 @@ onMounted(() => {
         description="Try adjusting your search, or create a new project to get started."
       >
         <template #action>
-          <RouterLink :to="{ name: 'project-create' }">
+          <RouterLink v-if="auth.can(PERM.CREATE)" :to="{ name: 'project-create' }">
             <BaseButton variant="primary"><PlusIcon class="h-4 w-4" /> Create Project</BaseButton>
           </RouterLink>
         </template>
@@ -386,6 +392,7 @@ onMounted(() => {
         <template #row-actions="{ row }">
           <div class="flex justify-end">
             <BaseButton
+              v-if="canToggleLock(row)"
               variant="ghost"
               size="sm"
               :title="row.isLocked ? 'Buka kunci project' : 'Kunci project'"
@@ -394,12 +401,17 @@ onMounted(() => {
               <LockOpenIcon v-if="row.isLocked" class="h-4 w-4 text-amber-500" />
               <LockClosedIcon v-else class="h-4 w-4" />
             </BaseButton>
-            <RouterLink :to="{ name: 'project-edit', params: { id: row.id } }" title="Edit project">
+            <RouterLink
+              v-if="auth.can(PERM.EDIT)"
+              :to="{ name: 'project-edit', params: { id: row.id } }"
+              title="Edit project"
+            >
               <BaseButton variant="ghost" size="sm">
                 <PencilSquareIcon class="h-4 w-4" />
               </BaseButton>
             </RouterLink>
             <BaseButton
+              v-if="auth.can(PERM.DELETE)"
               variant="ghost"
               size="sm"
               title="Delete project"
@@ -439,6 +451,7 @@ onMounted(() => {
           </div>
           <div class="flex shrink-0 items-center gap-1">
             <button
+              v-if="canToggleLock(project)"
               type="button"
               :title="project.isLocked ? 'Buka kunci project' : 'Kunci project'"
               class="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-slate-100"
@@ -453,6 +466,7 @@ onMounted(() => {
               <LockClosedIcon v-else class="h-4 w-4" />
             </button>
             <button
+              v-if="auth.can(PERM.EDIT)"
               type="button"
               title="Edit project"
               class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-primary-600 group-hover:opacity-100"
@@ -463,6 +477,7 @@ onMounted(() => {
               <PencilSquareIcon class="h-4 w-4" />
             </button>
             <button
+              v-if="auth.can(PERM.DELETE)"
               type="button"
               title="Delete project"
               class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-danger group-hover:opacity-100"

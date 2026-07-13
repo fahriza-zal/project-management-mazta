@@ -27,7 +27,12 @@ export default defineConfig(({ mode }) => {
           target: gateway,
           changeOrigin: true,
           secure: true,
-          rewrite: () => '/',
+          // `gateway` already includes the `/graphql` path, so rewrite the
+          // matched prefix to empty — joining to exactly `/graphql` (no trailing
+          // slash). A trailing slash makes the gateway 307-redirect to an
+          // absolute http:// URL, which the browser can't follow (CORS + mixed
+          // content) and surfaces as "Tidak dapat terhubung ke server".
+          rewrite: () => '',
         },
       },
     },

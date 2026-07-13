@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/features/projects/stores/project'
+import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import { formatDate } from '@/shared/utils/format'
 import {
@@ -39,7 +41,13 @@ import ProjectMetricPanel from '@/features/projects/components/ProjectMetricPane
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
+const auth = useAuthStore()
 const { success, error: toastError } = useToast()
+
+/** Whether the current user may toggle this task's lock (unlock vs lock op). */
+function canToggleTaskLock(task) {
+  return task.isLocked ? auth.can(PERM.UNLOCK_TASK) : auth.can(PERM.LOCK_TASK)
+}
 
 const project = ref(null)
 const loading = ref(true)
@@ -394,7 +402,7 @@ onMounted(async () => {
             <ViewColumnsIcon class="h-4 w-4" />
             Board
           </BaseButton>
-          <BaseButton variant="primary" @click="goToEdit">
+          <BaseButton v-if="auth.can(PERM.EDIT)" variant="primary" @click="goToEdit">
             <PencilSquareIcon class="h-4 w-4" />
             Edit
           </BaseButton>
@@ -740,6 +748,7 @@ onMounted(async () => {
                             </p>
                             <div class="flex shrink-0 items-center gap-1">
                               <button
+                                v-if="canToggleTaskLock(t)"
                                 type="button"
                                 class="rounded-lg p-1 transition disabled:cursor-not-allowed disabled:opacity-40"
                                 :class="
@@ -755,6 +764,7 @@ onMounted(async () => {
                                 <LockClosedIcon v-else class="h-4 w-4" />
                               </button>
                               <button
+                                v-if="auth.can(PERM.ASSIGN_TASK)"
                                 type="button"
                                 class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
                                 :disabled="isTaskDone(t)"
@@ -964,6 +974,7 @@ onMounted(async () => {
                       {{ humanize(t.priority) }}
                     </BaseBadge>
                     <button
+                      v-if="canToggleTaskLock(t)"
                       type="button"
                       class="shrink-0 rounded-lg p-1 transition"
                       :class="
@@ -978,6 +989,7 @@ onMounted(async () => {
                       <LockClosedIcon v-else class="h-4 w-4" />
                     </button>
                     <button
+                      v-if="auth.can(PERM.ASSIGN_TASK)"
                       type="button"
                       class="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
                       title="Assign employees"

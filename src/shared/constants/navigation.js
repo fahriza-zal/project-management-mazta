@@ -12,6 +12,10 @@ import {
  * Primary sidebar navigation, grouped by section.
  * A group without a `title` renders its items without a header.
  * Profile is intentionally not here — it lives in the navbar user dropdown instead.
+ *
+ * `permissions` lists the GraphQL operations that item's page uses. The Sidebar
+ * shows the item when the user has ANY of them (i.e. hide only when the user
+ * can run none of that feature's queries). Items without it are always shown.
  */
 export const SIDEBAR_NAV = [
   {
@@ -20,17 +24,47 @@ export const SIDEBAR_NAV = [
   {
     title: 'Master',
     items: [
-      { name: 'Default Task', to: { name: 'default-task' }, icon: ClipboardDocumentListIcon },
-      { name: 'Task Status', to: { name: 'task-status' }, icon: ViewColumnsIcon },
-      { name: 'Project Role', to: { name: 'project-role' }, icon: UserGroupIcon },
-      { name: 'Project Status', to: { name: 'project-status' }, icon: FlagIcon },
+      {
+        name: 'Default Task',
+        to: { name: 'default-task' },
+        icon: ClipboardDocumentListIcon,
+        permissions: ['listDefaultTask', 'getDefaultTask'],
+      },
+      {
+        name: 'Task Status',
+        to: { name: 'task-status' },
+        icon: ViewColumnsIcon,
+        permissions: ['listTaskStatusDefinition', 'getTaskStatusDefinition'],
+      },
+      {
+        name: 'Project Role',
+        to: { name: 'project-role' },
+        icon: UserGroupIcon,
+        permissions: ['listProjectRole', 'getProjectRole'],
+      },
+      {
+        name: 'Project Status',
+        to: { name: 'project-status' },
+        icon: FlagIcon,
+        permissions: ['listProjectStatusDefinition', 'getProjectStatusDefinition'],
+      },
     ],
   },
   {
     title: 'Transaction',
     items: [
-      { name: 'Projects', to: { name: 'projects' }, icon: FolderIcon },
-      { name: 'Timesheet', to: { name: 'timesheet' }, icon: ClockIcon },
+      {
+        name: 'Projects',
+        to: { name: 'projects' },
+        icon: FolderIcon,
+        permissions: ['listProject', 'getProject'],
+      },
+      {
+        name: 'Timesheet',
+        to: { name: 'timesheet' },
+        icon: ClockIcon,
+        permissions: ['listTimeSheet', 'getTimeSheet'],
+      },
     ],
   },
 ]

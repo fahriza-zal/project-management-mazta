@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTimesheetStore } from '@/features/timesheet/stores/timesheet'
 import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/timesheet/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import {
   PlusIcon,
@@ -139,9 +140,9 @@ function dotClass(state) {
 
 // Running can be held or closed; every other non-new state (hold, closed) can be
 // (re)started or closed; a brand-new sheet can only be started.
-const canStart = (row) => stateOf(row) !== 'running'
-const canHold = (row) => stateOf(row) === 'running'
-const canClose = (row) => stateOf(row) !== 'new'
+const canStart = (row) => stateOf(row) !== 'running' && auth.can(PERM.START)
+const canHold = (row) => stateOf(row) === 'running' && auth.can(PERM.HOLD)
+const canClose = (row) => stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
 
 /** PROJECT timesheets carry a project; COMMON (default-task) ones don't. */
 function typeLabel(row) {
@@ -386,7 +387,7 @@ onMounted(load)
           >
         </p>
       </div>
-      <BaseButton variant="primary" @click="openCreate">
+      <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
         <PlusIcon class="h-4 w-4" />
         Buat Timesheet
       </BaseButton>
@@ -459,7 +460,7 @@ onMounted(load)
       description="Buat timesheet untuk mulai mencatat pekerjaan Anda pada sebuah task."
     >
       <template #action>
-        <BaseButton variant="primary" @click="openCreate">
+        <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
           <PlusIcon class="h-4 w-4" /> Buat Timesheet
         </BaseButton>
       </template>

@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apolloClient } from '@/shared/graphql/apolloClient'
-import { LOGIN } from '@/features/auth/graphql'
+import { LOGIN, LOGOUT } from '@/features/auth/graphql'
 
 const TOKEN_KEY = 'pm_token'
 const PROFILE_KEY = 'pm_profile'
@@ -16,6 +16,24 @@ export const useAuthStore = defineStore('auth', () => {
   const employee = ref(null) // raw `employee` from the API
 
   const isAuthenticated = computed(() => !!token.value)
+
+  /**
+   * Set of operation names the signed-in user is allowed to call, from
+   * `user.userPermissions` (each entry is a GraphQL operation, e.g. `listProject`).
+   * Used for O(1) lookups in `can()`.
+   */
+  const permissionSet = computed(() => new Set(user.value?.userPermissions || []))
+
+  /**
+   * Whether the user may perform an operation. Frontend gating is UX only —
+   * the API still enforces access — so this just hides what the user can't use.
+   * @param {string|string[]} perm Operation name, or a list (true if ANY match).
+   */
+  function can(perm) {
+    if (user.value?.isSuperuser) return true
+    if (Array.isArray(perm)) return perm.some((p) => permissionSet.value.has(p))
+    return permissionSet.value.has(perm)
+  }
 
   /** Normalized view of the signed-in account for the UI. */
   const profile = computed(() => {
@@ -34,7 +52,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   function persist() {
     localStorage.setItem(TOKEN_KEY, token.value)
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({ user: user.value, employee: employee.value }))
+    localStorage.setItem(
+      PROFILE_KEY,
+      JSON.stringify({ user: user.value, employee: employee.value }),
+    )
   }
 
   /**
@@ -89,13 +110,42 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
-    token.value = ''
-    user.value = null
-    employee.value = null
+  /** Wipe the persisted session from storage. */
+  function clearStorage() {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(PROFILE_KEY)
   }
 
-  return { token, user, employee, profile, isAuthenticated, login, hydrate, logout }
+  /**
+   * Sign out. Clears the in-memory session synchronously (so the router guard
+   * sees us as signed out immediately and doesn't bounce back), then tells the
+   * server to invalidate the token — carrying the token explicitly in the header
+   * since `authLink` reads it from storage, which we keep until logout succeeds.
+   * Persisted storage is only wiped once the server confirms the logout.
+   */
+  function logout() {
+    const bearer = token.value
+    token.value = ''
+    user.value = null
+    employee.value = null
+
+    if (bearer) {
+      apolloClient
+        .mutate({
+          mutation: LOGOUT,
+          fetchPolicy: 'no-cache',
+          context: { headers: { Authorization: `Bearer ${bearer}` } },
+        })
+        .then(() => clearStorage())
+        .catch(() => {
+          // Server logout failed — keep storage so the session can be retried/restored.
+        })
+    } else {
+      clearStorage()
+    }
+    // Drop any cached data so it can't leak to the next account signing in.
+    apolloClient.clearStore().catch(() => {})
+  }
+
+  return { token, user, employee, profile, isAuthenticated, can, login, hydrate, logout }
 })

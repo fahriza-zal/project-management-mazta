@@ -1,7 +1,9 @@
 <script setup>
+import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/shared/stores/ui'
+import { useAuthStore } from '@/features/auth/stores/auth'
 import { SIDEBAR_NAV } from '@/shared/constants/navigation'
 import { ArrowRightOnRectangleIcon, ChevronLeftIcon, CubeIcon } from '@heroicons/vue/24/outline'
 import BaseTooltip from '@/shared/components/base/BaseTooltip.vue'
@@ -14,7 +16,20 @@ const emit = defineEmits(['logout', 'navigate'])
 
 const ui = useUiStore()
 const { sidebarCollapsed } = storeToRefs(ui)
+const auth = useAuthStore()
 const route = useRoute()
+
+/**
+ * Nav filtered by permission: keep an item when it has no `permissions` or the
+ * user can run ANY of them (hide only when none of the feature's queries are
+ * allowed), then drop any group left with no items so its header doesn't render.
+ */
+const navGroups = computed(() =>
+  SIDEBAR_NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.permissions || auth.can(item.permissions)),
+  })).filter((group) => group.items.length > 0),
+)
 
 /**
  * Whether a nav item should render as active.
@@ -50,7 +65,7 @@ function itemActive(item, href, isActive, isExactActive) {
     <!-- Nav -->
     <nav class="flex-1 overflow-y-auto py-4">
       <div
-        v-for="(group, gi) in SIDEBAR_NAV"
+        v-for="(group, gi) in navGroups"
         :key="gi"
         class="space-y-1"
         :class="gi > 0 ? 'mt-6' : ''"

@@ -4,6 +4,7 @@ import { useRoute, RouterLink } from 'vue-router'
 import { useProjectStore } from '@/features/projects/stores/project'
 import { useTaskStatusStore } from '@/features/task-status/stores/taskStatus'
 import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
@@ -140,6 +141,8 @@ onMounted(async () => {
     <ProjectTaskBoard
       :columns="columns"
       :tasks="tasks"
+      :can-create="auth.can(PERM.CREATE_TASK)"
+      :can-move="auth.can(PERM.UPDATE_TASK)"
       @add="onAdd"
       @status-change="onStatusChange"
       @comment="onComment"

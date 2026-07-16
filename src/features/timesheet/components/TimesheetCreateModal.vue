@@ -36,11 +36,18 @@ const employee = computed(() => {
 
 function emptyForm() {
   return {
-    taskId: '', // id of the chosen availableTask (routed to taskId/defaultTaskId on submit)
+    // Composite key `category:id` of the chosen availableTask — `id` alone is not
+    // unique across categories (a PROJECT task and a COMMON default-task can share id).
+    taskId: '',
     description: '',
   }
 }
 const form = ref(emptyForm())
+
+/** Stable, category-scoped key for an availableTask. */
+function taskKey(t) {
+  return `${t.category}:${t.id}`
+}
 
 /** "IN_HOUSE" / "in_house" → "In House". */
 function humanize(name) {
@@ -54,7 +61,7 @@ function humanize(name) {
 /** availableTasks → BaseSelect options, category shown as a prefix. */
 const taskOptions = computed(() =>
   availableTasks.value.map((t) => ({
-    value: t.id,
+    value: taskKey(t),
     label: `[${humanize(t.category)}] ${t.title}`,
   })),
 )
@@ -96,7 +103,7 @@ async function onSubmit() {
   if (!validate()) return
   saving.value = true
   try {
-    const chosen = availableTasks.value.find((t) => String(t.id) === String(form.value.taskId))
+    const chosen = availableTasks.value.find((t) => taskKey(t) === form.value.taskId)
     const isProject = chosen?.category?.toUpperCase() === 'PROJECT'
     const input = {
       employeeId: Number(employee.value.id),

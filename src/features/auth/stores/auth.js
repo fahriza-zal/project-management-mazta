@@ -80,11 +80,13 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('Username atau password salah.')
     }
 
-    // Only active staff may access the application.
+    // Only active accounts may sign in.
     if (!data.user.isActive) {
       throw new Error('Akun Anda tidak aktif. Hubungi administrator.')
     }
-    if (!data.user.isStaff) {
+    // Staff may access the app; a superadmin gets in too even without a linked
+    // employee record (`employee` is null for superusers).
+    if (!data.user.isStaff && !data.user.isSuperuser) {
       throw new Error('Anda tidak memiliki akses ke aplikasi ini.')
     }
 

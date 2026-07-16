@@ -36,6 +36,8 @@ const { success, error: toastError } = useToast()
 
 auth.hydrate()
 const employeeName = computed(() => auth.employee?.fullName || '')
+// The list is scoped to the signed-in employee (id from the auth store / `pm_profile`).
+const employeeId = computed(() => (auth.employee?.id != null ? Number(auth.employee.id) : null))
 
 /** Today as a local `'yyyy-MM-dd'` string (matches BaseDatePicker's model type). */
 function todayStr() {
@@ -230,6 +232,7 @@ function toggleExpand(id) {
 function load() {
   return store
     .fetchList({
+      employeeId: employeeId.value,
       page: page.value,
       pageSize: PAGE_SIZE,
       search: search.value.trim() || null,
@@ -355,6 +358,7 @@ async function confirmAction() {
     // data arrives, drop the optimistic overrides so server status is authoritative.
     store
       .fetchList({
+        employeeId: employeeId.value,
         page: page.value,
         pageSize: PAGE_SIZE,
         search: search.value.trim() || null,

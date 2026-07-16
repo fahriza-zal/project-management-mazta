@@ -39,6 +39,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
    * @param {{ page?: number, pageSize?: number, search?: string, workDateGte?: string|null, workDateLte?: string|null }} [params]
    */
   async function fetchList({
+    employeeId = null,
     page = null,
     pageSize = null,
     search = null,
@@ -50,7 +51,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     try {
       const { data } = await apolloClient.query({
         query: LIST_TIMESHEET,
-        variables: { params: { page, pageSize, search, workDateGte, workDateLte } },
+        variables: { params: { employeeId, page, pageSize, search, workDateGte, workDateLte } },
         fetchPolicy: 'network-only',
       })
 

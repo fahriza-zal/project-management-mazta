@@ -51,3 +51,14 @@ export function initials(name = '') {
 export function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value || 0)))
 }
+
+/** Seconds → compact human duration, e.g. "1j 3m", "7m 26s", "12s", "0s". */
+export function formatDuration(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h) return `${h}j ${m}m`
+  if (m) return `${m}m ${sec}s`
+  return `${sec}s`
+}

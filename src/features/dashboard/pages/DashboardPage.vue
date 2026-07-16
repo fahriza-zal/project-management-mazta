@@ -1,19 +1,64 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
-import { Squares2X2Icon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import { PERM } from '@/features/dashboard/permissions'
+import { UserIcon, Squares2X2Icon, ChartBarIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
+import PersonalDashboard from '@/features/dashboard/components/PersonalDashboard.vue'
 import OverviewDashboard from '@/features/dashboard/components/OverviewDashboard.vue'
 import HistoryDashboard from '@/features/dashboard/components/HistoryDashboard.vue'
+import BaseCard from '@/shared/components/base/BaseCard.vue'
+import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 
 const auth = useAuthStore()
+auth.hydrate()
+
+// Only the tabs the user is permitted to open are shown; each `perm` is the
+// subscription operation the backend gates on.
+const ALL_TABS = [
+  {
+    key: 'personal',
+    label: 'Personal',
+    icon: UserIcon,
+    perm: PERM.PERSONAL,
+    subtitle: 'Ringkasan aktivitas timesheet Anda dan tim secara langsung.',
+  },
+  {
+    key: 'overview',
+    label: 'Overview',
+    icon: Squares2X2Icon,
+    perm: PERM.OVERVIEW,
+    subtitle: 'Ringkasan langsung seluruh project & task Anda.',
+  },
+  {
+    key: 'history',
+    label: 'History',
+    icon: ChartBarIcon,
+    perm: PERM.HISTORY,
+    subtitle: 'Tren metrik harian dari waktu ke waktu.',
+  },
+]
+
+const tabs = computed(() =>
+  ALL_TABS.filter((t) => {
+    if (!auth.can(t.perm)) return false
+    // Personal is per-employee; hide it for accounts without an employee record
+    // (e.g. a superadmin whose `employee` is null), since it has no data for them.
+    if (t.key === 'personal' && auth.employee?.id == null) return false
+    return true
+  }),
+)
 
 // Which dashboard is shown. Each view owns its own subscription, so only the
-// active one stays connected (the other unsubscribes when it unmounts).
-const tab = ref('overview') // 'overview' | 'history'
-const tabs = [
-  { key: 'overview', label: 'Overview', icon: Squares2X2Icon },
-  { key: 'history', label: 'History', icon: ChartBarIcon },
-]
+// active one stays connected (the others unsubscribe when they unmount).
+const tab = ref(tabs.value[0]?.key ?? null)
+
+// Keep the selection valid: if permissions change and hide the active tab,
+// fall back to the first tab the user can still see.
+watch(tabs, (list) => {
+  if (!list.some((t) => t.key === tab.value)) tab.value = list[0]?.key ?? null
+})
+
+const activeSubtitle = computed(() => tabs.value.find((t) => t.key === tab.value)?.subtitle ?? '')
 </script>
 
 <template>
@@ -24,16 +69,13 @@ const tabs = [
         <h1 class="text-heading">
           Welcome back, {{ auth.profile?.name?.split(' ')[0] || 'there' }}
         </h1>
-        <p class="text-body mt-1">
-          {{
-            tab === 'overview'
-              ? 'Ringkasan langsung seluruh project & task Anda.'
-              : 'Tren metrik harian dari waktu ke waktu.'
-          }}
-        </p>
+        <p class="text-body mt-1">{{ activeSubtitle }}</p>
       </div>
 
-      <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+      <div
+        v-if="tabs.length > 1"
+        class="inline-flex rounded-xl border border-slate-200 bg-white p-1"
+      >
         <button
           v-for="t in tabs"
           :key="t.key"
@@ -53,7 +95,17 @@ const tabs = [
     </div>
 
     <!-- Active view -->
-    <OverviewDashboard v-if="tab === 'overview'" />
-    <HistoryDashboard v-else />
+    <PersonalDashboard v-if="tab === 'personal'" />
+    <OverviewDashboard v-else-if="tab === 'overview'" />
+    <HistoryDashboard v-else-if="tab === 'history'" />
+
+    <!-- No dashboard permitted -->
+    <BaseCard v-else>
+      <BaseEmpty
+        :icon="LockClosedIcon"
+        title="Tidak ada dashboard yang tersedia"
+        description="Anda belum memiliki izin untuk melihat dashboard apa pun."
+      />
+    </BaseCard>
   </div>
 </template>

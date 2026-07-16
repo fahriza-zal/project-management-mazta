@@ -1,8 +1,9 @@
-import { computed } from 'vue'
+import { computed, unref } from 'vue'
 import { useSubscription } from '@vue/apollo-composable'
 import {
   GENERAL_DASHBOARD_SUBSCRIPTION,
   HISTORY_DASHBOARD_SUBSCRIPTION,
+  SHEET_DASHBOARD_SUBSCRIPTION,
 } from '@/features/dashboard/graphql'
 
 /**
@@ -27,4 +28,25 @@ export function useHistoryDashboard() {
   const { result, loading, error, onError } = useSubscription(HISTORY_DASHBOARD_SUBSCRIPTION)
   const histories = computed(() => result.value?.historyDashboard?.histories ?? [])
   return { histories, loading, error, onError }
+}
+
+/**
+ * Live personal (per-employee) timesheet dashboard over WebSocket.
+ * Returns the queried employee's metrics plus their team, and the employee `tree`.
+ *
+ * @param {number|import('vue').Ref<number>} employeeId Target employee id.
+ * @returns {{ metrics, tree, loading, error, onError }}
+ */
+export function useSheetDashboard(employeeId) {
+  const { result, loading, error, onError } = useSubscription(
+    SHEET_DASHBOARD_SUBSCRIPTION,
+    () => ({ employeeId: Number(unref(employeeId)) }),
+    // Only subscribe once we actually have an employee id.
+    () => ({ enabled: unref(employeeId) != null }),
+  )
+
+  const metrics = computed(() => result.value?.sheetDashboard?.metrics ?? [])
+  const tree = computed(() => result.value?.sheetDashboard?.tree ?? null)
+
+  return { metrics, tree, loading, error, onError }
 }

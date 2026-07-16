@@ -29,6 +29,10 @@ export const LOGIN = gql`
             id
             name
           }
+          childrens {
+            id
+            fullName
+          }
         }
       }
     }

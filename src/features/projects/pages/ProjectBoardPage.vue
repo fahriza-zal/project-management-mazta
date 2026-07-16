@@ -12,6 +12,7 @@ import BaseModal from '@/shared/components/base/BaseModal.vue'
 import ProjectTaskBoard from '@/features/projects/components/ProjectTaskBoard.vue'
 import KanbanTaskCreateModal from '@/features/projects/components/KanbanTaskCreateModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
+import AttachmentUploader from '@/features/projects/components/AttachmentUploader.vue'
 
 const route = useRoute()
 const projectStore = useProjectStore()
@@ -157,20 +158,31 @@ onMounted(async () => {
       @created="onCreated"
     />
 
-    <!-- Task comments -->
+    <!-- Task comments + attachments -->
     <BaseModal
       v-model="commentOpen"
-      :title="commentTask ? commentTask.title : 'Comments'"
-      subtitle="Comments"
+      :title="commentTask ? commentTask.title : 'Task'"
+      subtitle="Comments & files"
       size="lg"
     >
-      <TaskComments
-        v-if="commentTask"
-        :key="commentTask.id"
-        :task="commentTask"
-        :collapsible="false"
-        @saved="onCommentSaved"
-      />
+      <template v-if="commentTask">
+        <TaskComments
+          :key="commentTask.id"
+          :task="commentTask"
+          :collapsible="false"
+          @saved="onCommentSaved"
+        />
+        <div class="mt-4 border-t border-slate-100 pt-4">
+          <p class="text-subheading mb-2">Attachments</p>
+          <AttachmentUploader
+            :key="`att-${commentTask.id}`"
+            :task-id="commentTask.id"
+            :attachments="commentTask.attachments"
+            :collapsible="false"
+            @saved="onCommentSaved"
+          />
+        </div>
+      </template>
     </BaseModal>
   </div>
 

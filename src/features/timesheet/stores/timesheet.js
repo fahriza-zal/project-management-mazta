@@ -36,10 +36,13 @@ export const useTimesheetStore = defineStore('timesheet', () => {
    * Fetch a page of timesheets. Defensive against a not-yet-final list shape.
    * `workDateGte` / `workDateLte` filter by work date (inclusive), each a
    * `'yyyy-MM-dd'` string or null.
-   * @param {{ page?: number, pageSize?: number, search?: string, workDateGte?: string|null, workDateLte?: string|null }} [params]
+   * `employeeId` scopes to one employee (own timesheet); `employeeIds` scopes to a
+   * set (approval view — the signed-in user's subordinates, from `employee.childrens`).
+   * @param {{ employeeId?: number|null, employeeIds?: number[]|null, page?: number, pageSize?: number, search?: string, workDateGte?: string|null, workDateLte?: string|null }} [params]
    */
   async function fetchList({
     employeeId = null,
+    employeeIds = null,
     page = null,
     pageSize = null,
     search = null,
@@ -51,7 +54,17 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     try {
       const { data } = await apolloClient.query({
         query: LIST_TIMESHEET,
-        variables: { params: { employeeId, page, pageSize, search, workDateGte, workDateLte } },
+        variables: {
+          params: {
+            employeeId,
+            employeeIds: employeeIds?.length ? employeeIds : null,
+            page,
+            pageSize,
+            search,
+            workDateGte,
+            workDateLte,
+          },
+        },
         fetchPolicy: 'network-only',
       })
 

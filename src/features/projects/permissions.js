@@ -20,4 +20,6 @@ export const PERM = {
   LOCK_TASK: 'lockTask',
   UNLOCK_TASK: 'unlockTask',
   ASSIGN_TASK: 'createTaskAssignment',
+  // Attachment (project & task share one mutation)
+  CREATE_ATTACHMENT: 'createProjectAttachment',
 }

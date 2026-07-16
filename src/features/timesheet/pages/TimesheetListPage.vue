@@ -14,6 +14,8 @@ import {
   StopIcon,
   FolderIcon,
   ChevronDownIcon,
+  CheckCircleIcon,
+  UserIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
@@ -38,6 +40,19 @@ auth.hydrate()
 const employeeName = computed(() => auth.employee?.fullName || '')
 // The list is scoped to the signed-in employee (id from the auth store / `pm_profile`).
 const employeeId = computed(() => (auth.employee?.id != null ? Number(auth.employee.id) : null))
+
+// Subordinates (from `employee.childrens`) — their ids drive the Approval tab's
+// `employeeIds` filter. A user with no childrens isn't an approver (tab hidden).
+const childrenIds = computed(() =>
+  (auth.employee?.childrens ?? [])
+    .map((c) => (c?.id != null ? Number(c.id) : null))
+    .filter((id) => id != null),
+)
+const hasApproval = computed(() => childrenIds.value.length > 0)
+
+// Active tab: 'own' (my timesheet) | 'approval' (subordinates' timesheets).
+const tab = ref('own')
+const isOwnTab = computed(() => tab.value === 'own')
 
 /** Today as a local `'yyyy-MM-dd'` string (matches BaseDatePicker's model type). */
 function todayStr() {
@@ -140,11 +155,12 @@ function dotClass(state) {
   )
 }
 
-// Running can be held or closed; every other non-new state (hold, closed) can be
-// (re)started or closed; a brand-new sheet can only be started.
-const canStart = (row) => stateOf(row) !== 'running' && auth.can(PERM.START)
-const canHold = (row) => stateOf(row) === 'running' && auth.can(PERM.HOLD)
-const canClose = (row) => stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
+// Lifecycle actions apply to the user's own timesheets only (the Approval tab is
+// read-only). Running can be held or closed; other non-new states (hold, closed)
+// can be (re)started or closed; a brand-new sheet can only be started.
+const canStart = (row) => isOwnTab.value && stateOf(row) !== 'running' && auth.can(PERM.START)
+const canHold = (row) => isOwnTab.value && stateOf(row) === 'running' && auth.can(PERM.HOLD)
+const canClose = (row) => isOwnTab.value && stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
 
 /** PROJECT timesheets carry a project; COMMON (default-task) ones don't. */
 function typeLabel(row) {
@@ -229,17 +245,33 @@ function toggleExpand(id) {
 }
 
 /* --- Data loading --- */
+/**
+ * List params for the active tab: own timesheet scopes by `employeeId`; the
+ * Approval tab scopes by `employeeIds` (the signed-in user's subordinates).
+ */
+function listParams() {
+  const approval = tab.value === 'approval'
+  return {
+    employeeId: approval ? null : employeeId.value,
+    employeeIds: approval ? childrenIds.value : null,
+    page: page.value,
+    pageSize: PAGE_SIZE,
+    search: search.value.trim() || null,
+    workDateGte: workDateGte.value || null,
+    workDateLte: workDateLte.value || null,
+  }
+}
+
 function load() {
-  return store
-    .fetchList({
-      employeeId: employeeId.value,
-      page: page.value,
-      pageSize: PAGE_SIZE,
-      search: search.value.trim() || null,
-      workDateGte: workDateGte.value || null,
-      workDateLte: workDateLte.value || null,
-    })
-    .catch((err) => toastError(err.message))
+  return store.fetchList(listParams()).catch((err) => toastError(err.message))
+}
+
+/** Switch tabs, reset to the first page, and reload. */
+function switchTab(key) {
+  if (tab.value === key) return
+  tab.value = key
+  page.value = 1
+  load()
 }
 
 function onSearch() {
@@ -357,14 +389,7 @@ async function confirmAction() {
     // already succeeded — don't surface a list-refetch error over it). Once fresh
     // data arrives, drop the optimistic overrides so server status is authoritative.
     store
-      .fetchList({
-        employeeId: employeeId.value,
-        page: page.value,
-        pageSize: PAGE_SIZE,
-        search: search.value.trim() || null,
-        workDateGte: workDateGte.value || null,
-        workDateLte: workDateLte.value || null,
-      })
+      .fetchList(listParams())
       .then(() => {
         stateOverride.value = {}
       })
@@ -386,15 +411,46 @@ onMounted(load)
       <div>
         <h1 class="text-heading">Timesheet</h1>
         <p class="text-body mt-1">
-          <span v-if="employeeName"
+          <span v-if="isOwnTab && employeeName"
             >Timesheet milik <strong>{{ employeeName }}</strong></span
           >
+          <span v-else-if="!isOwnTab">Timesheet tim yang Anda bawahi untuk ditinjau.</span>
         </p>
       </div>
-      <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
+      <BaseButton v-if="isOwnTab && auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
         <PlusIcon class="h-4 w-4" />
         Buat Timesheet
       </BaseButton>
+    </div>
+
+    <!-- Tabs: my timesheet vs approval (subordinates) -->
+    <div v-if="hasApproval" class="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition"
+        :class="
+          isOwnTab
+            ? 'bg-brand text-white shadow-glow'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+        "
+        @click="switchTab('own')"
+      >
+        <ClockIcon class="h-4 w-4" />
+        Timesheet Saya
+      </button>
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition"
+        :class="
+          !isOwnTab
+            ? 'bg-brand text-white shadow-glow'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+        "
+        @click="switchTab('approval')"
+      >
+        <CheckCircleIcon class="h-4 w-4" />
+        Approval
+      </button>
     </div>
 
     <!-- Summary tiles -->
@@ -460,10 +516,14 @@ onMounted(load)
     <BaseEmpty
       v-else-if="!items.length"
       :icon="ClockIcon"
-      title="Belum ada timesheet"
-      description="Buat timesheet untuk mulai mencatat pekerjaan Anda pada sebuah task."
+      :title="isOwnTab ? 'Belum ada timesheet' : 'Belum ada timesheet tim'"
+      :description="
+        isOwnTab
+          ? 'Buat timesheet untuk mulai mencatat pekerjaan Anda pada sebuah task.'
+          : 'Timesheet dari anggota tim yang Anda bawahi akan muncul di sini.'
+      "
     >
-      <template #action>
+      <template v-if="isOwnTab" #action>
         <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
           <PlusIcon class="h-4 w-4" /> Buat Timesheet
         </BaseButton>
@@ -486,6 +546,10 @@ onMounted(load)
                     </span>
                     <BaseBadge :color="stateMeta(row).color" size="sm" dot>
                       {{ statusLabel(row) }}
+                    </BaseBadge>
+                    <BaseBadge v-if="!isOwnTab && row.employee" color="primary" size="sm">
+                      <UserIcon class="h-3 w-3" />
+                      {{ row.employee.fullName }}
                     </BaseBadge>
                   </div>
                   <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
@@ -593,6 +657,10 @@ onMounted(load)
                     </span>
                     <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
                       {{ typeLabel(row) }}
+                    </BaseBadge>
+                    <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
+                      <UserIcon class="h-3 w-3" />
+                      {{ row.employee.fullName }}
                     </BaseBadge>
                   </div>
                   <p class="mt-0.5 truncate text-xs text-slate-400">

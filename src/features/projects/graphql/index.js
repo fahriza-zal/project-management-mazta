@@ -6,6 +6,24 @@ import { gql } from '@apollo/client/core'
  */
 
 /**
+ * Create a project/task attachment (one or more files).
+ *
+ * A **raw string** (not `gql`) on purpose: it's sent via the multipart upload
+ * helper (`graphqlUpload`), not Apollo. Input: { files: [Upload!], projectId, taskId }.
+ * For a project attachment send `projectId` (taskId null); for a task attachment
+ * send `taskId` (projectId null).
+ */
+export const CREATE_ATTACHMENT = `
+  mutation CreateProjectAttachment($input: ProjectAttachmentInput!) {
+    createProjectAttachment(input: $input) {
+      data {
+        id
+      }
+    }
+  }
+`
+
+/**
  * Create a project.
  * Variables: { input: ProjectInput! } where input =
  * { name, prefix, description, startDate, expectedEndDate, parentId, projectCategory,
@@ -211,6 +229,12 @@ export const GET_PROJECT_DETAIL = gql`
         attachments {
           id
           files
+          task {
+            attachments {
+              id
+              files
+            }
+          }
         }
         milestones {
           id
@@ -366,6 +390,10 @@ export const GET_PROJECT_BOARD = gql`
                   email
                 }
               }
+            }
+            attachments {
+              id
+              files
             }
           }
         }

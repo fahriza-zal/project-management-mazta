@@ -36,6 +36,7 @@ import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 import ConfirmDialog from '@/shared/components/base/ConfirmDialog.vue'
 import TaskAssignModal from '@/features/projects/components/TaskAssignModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
+import AttachmentUploader from '@/features/projects/components/AttachmentUploader.vue'
 import ProjectMetricPanel from '@/features/projects/components/ProjectMetricPanel.vue'
 
 const route = useRoute()
@@ -205,9 +206,10 @@ const creatorName = computed(() => {
   return full || u.username || '—'
 })
 
-const attachments = computed(() => {
+// Task attachments (read-only here; uploaded from each task card). Project
+// attachments are handled by the AttachmentUploader in the Files tab.
+const taskAttachments = computed(() => {
   const list = []
-  for (const a of project.value?.attachments ?? []) list.push({ ...a, _source: 'Project' })
   for (const t of allTasks.value)
     for (const a of t.attachments ?? []) list.push({ ...a, _source: t.title })
   return list
@@ -356,8 +358,9 @@ onMounted(async () => {
         description="The project you’re looking for doesn’t exist."
       />
     </div>
-
+  
     <template v-else-if="project">
+      
       <!-- ── Breadcrumb ──────────────────────────────────────────────────── -->
       <nav class="flex items-center gap-1.5 text-xs text-slate-400">
         <router-link :to="{ name: 'dashboard' }" class="hover:text-primary-600"
@@ -925,6 +928,13 @@ onMounted(async () => {
 
                           <!-- comments thread -->
                           <TaskComments :task="t" @saved="loadProject" />
+
+                          <!-- attachments -->
+                          <AttachmentUploader
+                            :task-id="t.id"
+                            :attachments="t.attachments"
+                            @saved="loadProject"
+                          />
                         </div>
                       </div>
                       <p v-if="!m.tasks?.length" class="text-xs text-slate-400">
@@ -1056,26 +1066,40 @@ onMounted(async () => {
               </div>
 
               <!-- Files -->
-              <div v-else-if="activeTab === 'files'">
-                <ul v-if="attachments.length" class="space-y-2">
-                  <li
-                    v-for="a in attachments"
-                    :key="a.id"
-                    class="flex items-center gap-3 rounded-xl border border-slate-100 bg-white/70 px-3 py-2.5"
-                  >
-                    <DocumentIcon class="h-5 w-5 shrink-0 text-slate-400" />
-                    <a
-                      :href="a.files"
-                      target="_blank"
-                      rel="noopener"
-                      class="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 hover:text-primary-600"
+              <div v-else-if="activeTab === 'files'" class="space-y-6">
+                <!-- Project files: upload + list -->
+                <section>
+                  <p class="text-subheading mb-2">Project Files</p>
+                  <AttachmentUploader
+                    :project-id="project.id"
+                    :attachments="project.attachments"
+                    :collapsible="false"
+                    @saved="loadProject"
+                  />
+                </section>
+
+                <!-- Task files (read-only; uploaded from each task card) -->
+                <section v-if="taskAttachments.length">
+                  <p class="text-subheading mb-2">Task Files</p>
+                  <ul class="space-y-2">
+                    <li
+                      v-for="a in taskAttachments"
+                      :key="a.id"
+                      class="flex items-center gap-3 rounded-xl border border-slate-100 bg-white/70 px-3 py-2.5"
                     >
-                      {{ fileName(a.files) }}
-                    </a>
-                    <BaseBadge color="slate" size="sm">{{ a._source }}</BaseBadge>
-                  </li>
-                </ul>
-                <BaseEmpty v-else :icon="DocumentIcon" title="No files" description="" />
+                      <DocumentIcon class="h-5 w-5 shrink-0 text-slate-400" />
+                      <a
+                        :href="a.files"
+                        target="_blank"
+                        rel="noopener"
+                        class="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 hover:text-primary-600"
+                      >
+                        {{ fileName(a.files) }}
+                      </a>
+                      <BaseBadge color="slate" size="sm">{{ a._source }}</BaseBadge>
+                    </li>
+                  </ul>
+                </section>
               </div>
             </div>
           </div>

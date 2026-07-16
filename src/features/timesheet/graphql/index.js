@@ -69,6 +69,10 @@ export const LIST_TIMESHEET = gql`
           seconds
           startTime
           endTime
+          employee {
+            id
+            fullName
+          }
           project {
             id
             name

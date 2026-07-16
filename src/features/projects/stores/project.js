@@ -29,7 +29,9 @@ import {
   CREATE_TASK_ASSIGNMENT,
   DELETE_TASK_ASSIGNMENT,
   CREATE_TASK_COMMENT,
+  CREATE_ATTACHMENT,
 } from '@/features/projects/graphql'
+import { graphqlUpload } from '@/shared/graphql/uploadClient'
 
 /** The parent-project picker shows 10 rows; the search narrows it server-side. */
 const PICKER_PAGE_SIZE = 10
@@ -86,7 +88,7 @@ export const useProjectStore = defineStore('project', () => {
         },
         fetchPolicy: 'network-only',
       })
-      
+
       const result = data?.listProject?.data
       items.value = result?.results ?? []
       pagination.value = {
@@ -406,6 +408,36 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * Upload one attachment file to a project OR a task (exactly one target).
+   * Uses the multipart upload helper (not Apollo). Pass `projectId` for a project
+   * attachment (taskId null), or `taskId` for a task attachment (projectId null).
+   * `files` is a single `Upload` scalar on the backend — send one File.
+   * @param {{ projectId?: number|string|null, taskId?: number|string|null, file: File }} input
+   * @returns created attachment `{ id }`
+   */
+  async function createAttachment({ projectId = null, taskId = null, file }) {
+    if (!file) throw new Error('Tidak ada file untuk diunggah.')
+    try {
+      const data = await graphqlUpload({
+        query: CREATE_ATTACHMENT,
+        variables: {
+          input: {
+            // The multipart map injects the File into this null slot.
+            files: null,
+            projectId: projectId == null ? null : Number(projectId),
+            taskId: taskId == null ? null : Number(taskId),
+          },
+        },
+        files: [file],
+        filesPath: 'variables.input.files',
+      })
+      return data?.createProjectAttachment?.data ?? null
+    } catch (err) {
+      throw new Error(err?.message || 'Gagal mengunggah lampiran.')
+    }
+  }
+
   /** Remove a task assignment by its id (unassign; hard is always false). */
   async function deleteTaskAssignment(id) {
     try {
@@ -512,6 +544,7 @@ export const useProjectStore = defineStore('project', () => {
     createTaskAssignment,
     deleteTaskAssignment,
     createTaskComment,
+    createAttachment,
     lockProject,
     unlockProject,
     lockTask,

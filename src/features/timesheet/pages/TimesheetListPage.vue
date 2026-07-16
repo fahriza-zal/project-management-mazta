@@ -487,16 +487,22 @@ onMounted(load)
                   <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
                     <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
                     {{ row.project?.name || 'Common task' }}
-                    <span v-if="row.startTime"> · mulai {{ formatDateTime(row.startTime) }}</span>
+                    <span v-if="row.startTime && stateOf(row) !== 'running'">
+                      · mulai {{ formatDateTime(row.startTime) }}</span
+                    >
                   </p>
                 </div>
                 <!-- While running, the server duration stays 00:00:00, so show a
-                     live "berjalan" clock instead of the number. -->
+                     live "berjalan" clock plus the start time instead of the number. -->
                 <span
                   v-if="stateOf(row) === 'running'"
                   class="flex items-center gap-1.5 text-sm font-semibold text-success"
                 >
-                  <ClockIcon class="h-5 w-5 animate-tick" /> Berjalan…
+                  <ClockIcon class="h-5 w-5 animate-tick" />
+                  <span v-if="row.startTime"
+                    >Berjalan sejak {{ formatDateTime(row.startTime) }}</span
+                  >
+                  <span v-else>Berjalan…</span>
                 </span>
                 <span v-else class="text-xl font-bold tabular-nums text-slate-800">
                   {{ formatDuration(row.seconds) }}

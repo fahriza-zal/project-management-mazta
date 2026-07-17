@@ -26,6 +26,7 @@ import BaseModal from '@/shared/components/base/BaseModal.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BasePagination from '@/shared/components/base/BasePagination.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
+import ConfirmDialog from '@/shared/components/base/ConfirmDialog.vue'
 import TimesheetCreateModal from '@/features/timesheet/components/TimesheetCreateModal.vue'
 
 const PAGE_SIZE = 20
@@ -165,6 +166,32 @@ const canClose = (row) => isOwnTab.value && stateOf(row) !== 'new' && auth.can(P
 /** PROJECT timesheets carry a project; COMMON (default-task) ones don't. */
 function typeLabel(row) {
   return row.project ? 'Project' : 'Common'
+}
+
+/* -------------------------------------------------------------------------- */
+/* Approval — only the approver (Approval tab), gated by permission, may approve */
+/* a subordinate's timesheet. Approved rows are tracked optimistically so the    */
+/* button flips to an "Approved" badge without waiting for the refetch.          */
+/* -------------------------------------------------------------------------- */
+
+// Optimistic per-row approved flag (id → true), set the instant approve succeeds.
+const approvedOverride = ref({})
+
+/** Whether a row is already approved (optimistic flag or a server `approvedAt`). */
+function isApproved(row) {
+  if (approvedOverride.value[row.id]) return true
+  return !!row.approvedAt
+}
+/** Who approved the row — approver email from the server (null while optimistic). */
+function approverLabel(row) {
+  return row.approvedBy?.email || null
+}
+/**
+ * Show the approve button only in the Approval tab, if permitted and not yet
+ * approved. A still-running timesheet can't be approved (nothing to sign off yet).
+ */
+function canApprove(row) {
+  return !isOwnTab.value && auth.can(PERM.APPROVE) && stateOf(row) !== 'running' && !isApproved(row)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -401,6 +428,38 @@ async function confirmAction() {
   }
 }
 
+/* --- Approve (Approval tab) --- */
+const approveOpen = ref(false)
+const approveSaving = ref(false)
+const approveRow = ref(null)
+
+function openApprove(row) {
+  approveRow.value = row
+  approveOpen.value = true
+}
+
+async function confirmApprove() {
+  approveSaving.value = true
+  try {
+    const id = approveRow.value.id
+    await store.approveSheet(id)
+    approvedOverride.value = { ...approvedOverride.value, [id]: true }
+    success('Timesheet disetujui.')
+    approveOpen.value = false
+    // Reconcile status from the server silently — the approval already succeeded.
+    store
+      .fetchList(listParams())
+      .then(() => {
+        approvedOverride.value = {}
+      })
+      .catch(() => {})
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    approveSaving.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -449,7 +508,7 @@ onMounted(load)
         @click="switchTab('approval')"
       >
         <CheckCircleIcon class="h-4 w-4" />
-        Approval
+        Approval Team
       </button>
     </div>
 
@@ -600,6 +659,23 @@ onMounted(load)
                   >
                     <StopIcon class="h-4 w-4" /> Close
                   </BaseButton>
+                  <BaseButton
+                    v-if="canApprove(row)"
+                    variant="primary"
+                    size="sm"
+                    @click="openApprove(row)"
+                  >
+                    <CheckCircleIcon class="h-4 w-4" /> Approve
+                  </BaseButton>
+                  <BaseBadge
+                    v-else-if="!isOwnTab && isApproved(row)"
+                    color="success"
+                    size="sm"
+                    dot
+                    :title="approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined"
+                  >
+                    Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                  </BaseBadge>
                   <button
                     class="rounded-lg p-2 text-slate-400 hover:bg-white/70 hover:text-slate-600"
                     :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
@@ -624,11 +700,23 @@ onMounted(load)
                       class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
                       :class="dotClass(classify(a.status))"
                     />
-                    <div class="min-w-0">
-                      <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                      <span v-if="a.description" class="text-slate-400">
-                        — {{ a.description }}</span
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
+                        <span v-if="a.description" class="text-slate-400">
+                          — {{ a.description }}</span
+                        >
+                      </div>
+                      <div
+                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
                       >
+                        <span v-if="a.totalTime != null" class="tabular-nums">
+                          <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
+                            formatDuration(a.totalTime)
+                          }}
+                        </span>
+                        <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
+                      </div>
                     </div>
                   </li>
                 </ol>
@@ -700,6 +788,23 @@ onMounted(load)
                   >
                     <StopIcon class="h-4 w-4" /> Close
                   </BaseButton>
+                  <BaseButton
+                    v-if="canApprove(row)"
+                    variant="primary"
+                    size="sm"
+                    @click="openApprove(row)"
+                  >
+                    <CheckCircleIcon class="h-4 w-4" /> Approve
+                  </BaseButton>
+                  <BaseBadge
+                    v-else-if="!isOwnTab && isApproved(row)"
+                    color="success"
+                    size="sm"
+                    dot
+                    :title="approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined"
+                  >
+                    Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                  </BaseBadge>
                   <button
                     class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                     :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
@@ -724,11 +829,23 @@ onMounted(load)
                       class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
                       :class="dotClass(classify(a.status))"
                     />
-                    <div class="min-w-0">
-                      <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                      <span v-if="a.description" class="text-slate-400">
-                        — {{ a.description }}</span
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
+                        <span v-if="a.description" class="text-slate-400">
+                          — {{ a.description }}</span
+                        >
+                      </div>
+                      <div
+                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
                       >
+                        <span v-if="a.totalTime != null" class="tabular-nums">
+                          <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
+                            formatDuration(a.totalTime)
+                          }}
+                        </span>
+                        <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
+                      </div>
                     </div>
                   </li>
                 </ol>
@@ -775,6 +892,21 @@ onMounted(load)
         </div>
       </template>
     </BaseModal>
+
+    <!-- Approve subordinate's timesheet -->
+    <ConfirmDialog
+      :model-value="approveOpen"
+      variant="primary"
+      title="Setujui timesheet"
+      :message="`Setujui timesheet ${
+        approveRow?.employee?.fullName ? `milik ${approveRow.employee.fullName} ` : ''
+      }untuk task '${approveRow?.task?.title || 'Untitled task'}'?`"
+      confirm-text="Setujui"
+      cancel-text="Batal"
+      :loading="approveSaving"
+      @update:model-value="approveOpen = $event"
+      @confirm="confirmApprove"
+    />
   </div>
 </template>
 

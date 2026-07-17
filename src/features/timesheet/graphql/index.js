@@ -65,6 +65,10 @@ export const LIST_TIMESHEET = gql`
         hasPrev
         results {
           id
+          approvedAt
+          approvedBy {
+            email
+          }
           status
           seconds
           startTime
@@ -91,6 +95,8 @@ export const LIST_TIMESHEET = gql`
             id
             status
             description
+            totalTime
+            updatedAt
           }
         }
       }
@@ -134,6 +140,20 @@ export const CLOSE_SHEET = gql`
       data {
         id
         status
+      }
+    }
+  }
+`
+
+/**
+ * Approve a subordinate's timesheet (Approval tab, approver-only). No note.
+ * Variables: { approveSheetId: Int! }.
+ */
+export const APPROVE_SHEET = gql`
+  mutation ApproveSheet($approveSheetId: Int!) {
+    approveSheet(id: $approveSheetId) {
+      data {
+        id
       }
     }
   }

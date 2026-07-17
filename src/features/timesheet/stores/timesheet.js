@@ -8,6 +8,7 @@ import {
   START_SHEET,
   HOLD_SHEET,
   CLOSE_SHEET,
+  APPROVE_SHEET,
 } from '@/features/timesheet/graphql'
 
 /** Turn an Apollo/GraphQL error into a user-friendly message. */
@@ -148,6 +149,19 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     }
   }
 
+  /** Approve a subordinate's timesheet (Approval tab). Returns the approved { id }. */
+  async function approveSheet(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: APPROVE_SHEET,
+        variables: { approveSheetId: Number(id) },
+      })
+      return data?.approveSheet?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal menyetujui timesheet.'))
+    }
+  }
+
   /**
    * Tasks assignable to an employee (mixed PROJECT + COMMON). Returns the raw
    * `availableTasks` array — `category` is needed to route the chosen task to
@@ -173,6 +187,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     startSheet,
     holdSheet,
     closeSheet,
+    approveSheet,
     fetchEmployeeTasks,
   }
 })

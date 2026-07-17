@@ -10,4 +10,5 @@ export const PERM = {
   START: 'startSheet',
   HOLD: 'holdSheet',
   CLOSE: 'closeSheet',
+  APPROVE: 'approveSheet',
 }

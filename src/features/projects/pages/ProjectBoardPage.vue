@@ -23,6 +23,14 @@ const { success, error: toastError } = useToast()
 const project = ref(null)
 const loading = ref(true)
 
+// Board columns are scoped to the signed-in employee's companies & units
+// (ids from the auth store / `pm_profile`). Empty → sent as no filter.
+auth.hydrate()
+const companyIds = computed(() =>
+  (auth.employee?.companies ?? []).map((c) => Number(c.id)).filter(Boolean),
+)
+const unitIds = computed(() => (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean))
+
 // Columns come from the task-status definitions (`listTaskStatus`), ordered by
 // `ordering`; a small palette cycles the accent colors.
 const ACCENTS = ['slate', 'info', 'warning', 'success', 'danger']
@@ -111,7 +119,12 @@ onMounted(async () => {
   try {
     const [proj, statuses] = await Promise.all([
       projectStore.fetchProjectBoard(route.params.id),
-      taskStatusStore.fetchList({ page: 1, pageSize: 100 }),
+      taskStatusStore.fetchList({
+        page: 1,
+        pageSize: 100,
+        companyIds: companyIds.value,
+        unitIds: unitIds.value,
+      }),
     ])
     project.value = clone(proj)
     columns.value = [...(statuses ?? [])]

@@ -1,16 +1,28 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { PERM } from '@/features/dashboard/permissions'
+import { useRangeProjects } from '@/features/dashboard/composables/useDashboard'
 import { UserIcon, Squares2X2Icon, ChartBarIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
 import PersonalDashboard from '@/features/dashboard/components/PersonalDashboard.vue'
 import OverviewDashboard from '@/features/dashboard/components/OverviewDashboard.vue'
 import HistoryDashboard from '@/features/dashboard/components/HistoryDashboard.vue'
+import ProjectGanttChart from '@/features/dashboard/components/ProjectGanttChart.vue'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 
 const auth = useAuthStore()
 auth.hydrate()
+
+// Project timeline (Gantt) — shown to any user permitted for `getRangeProject`,
+// independent of the dashboard tabs. `unitIds` (the signed-in user's units)
+// scopes which projects appear, so each user sees their own units' projects.
+const canGantt = computed(() => auth.can(PERM.RANGE_PROJECT))
+const unitIds = computed(() => (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean))
+const { ranges: projectRanges, loading: ganttLoading, reload: reloadGantt } = useRangeProjects(unitIds)
+onMounted(() => {
+  if (canGantt.value) reloadGantt()
+})
 
 // Only the tabs the user is permitted to open are shown; each `perm` is the
 // subscription operation the backend gates on.
@@ -94,13 +106,17 @@ const activeSubtitle = computed(() => tabs.value.find((t) => t.key === tab.value
       </div>
     </div>
 
+    <!-- Project timeline — at the top so every permitted user sees their unit's
+         project timeline right after login, regardless of tab. -->
+    <ProjectGanttChart v-if="canGantt" :ranges="projectRanges" :loading="ganttLoading" />
+
     <!-- Active view -->
     <PersonalDashboard v-if="tab === 'personal'" />
     <OverviewDashboard v-else-if="tab === 'overview'" />
     <HistoryDashboard v-else-if="tab === 'history'" />
 
-    <!-- No dashboard permitted -->
-    <BaseCard v-else>
+    <!-- No dashboard permitted (and no timeline either) -->
+    <BaseCard v-else-if="!canGantt">
       <BaseEmpty
         :icon="LockClosedIcon"
         title="Tidak ada dashboard yang tersedia"

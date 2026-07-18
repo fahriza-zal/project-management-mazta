@@ -1,6 +1,33 @@
 import { gql } from '@apollo/client/core'
 
 /**
+ * Project date ranges for the dashboard Gantt timeline. Scoped by `unitIds`
+ * (the signed-in user's units). Variables: { params: ProjectParams }.
+ *
+ * NOTE: unlike the paginated list operations, `getRangeProject` returns the
+ * array **directly** under `data.getRangeProject` — there is no `.data` envelope.
+ */
+export const GET_RANGE_PROJECT = gql`
+  query GetRangeProject($params: ProjectParams) {
+    getRangeProject(params: $params) {
+      endDate
+      expectedEndDate
+      startDate
+      project {
+        id
+        name
+        projectCategory
+        projectMode
+        prefix
+        fullCode
+        isClosed
+        isLocked
+      }
+    }
+  }
+`
+
+/**
  * Dashboard GraphQL subscriptions (live data over WebSocket).
  * Auth is carried on the socket connection (see `apolloClient` `connectionParams`),
  * not per-operation, so these take no token argument.

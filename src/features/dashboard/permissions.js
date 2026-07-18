@@ -8,4 +8,7 @@ export const PERM = {
   PERSONAL: 'sheetDashboard',
   OVERVIEW: 'generalDashboard',
   HISTORY: 'historyDashboard',
+  // Project timeline (Gantt) — its own operation, shown to any user who has it
+  // regardless of which dashboard tab they can open.
+  RANGE_PROJECT: 'getRangeProject',
 }

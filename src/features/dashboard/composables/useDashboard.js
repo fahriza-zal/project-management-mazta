@@ -1,9 +1,11 @@
-import { computed, unref } from 'vue'
+import { computed, ref, unref } from 'vue'
 import { useSubscription } from '@vue/apollo-composable'
+import { apolloClient } from '@/shared/graphql/apolloClient'
 import {
   GENERAL_DASHBOARD_SUBSCRIPTION,
   HISTORY_DASHBOARD_SUBSCRIPTION,
   SHEET_DASHBOARD_SUBSCRIPTION,
+  GET_RANGE_PROJECT,
 } from '@/features/dashboard/graphql'
 
 /**
@@ -49,4 +51,40 @@ export function useSheetDashboard(employeeId) {
   const tree = computed(() => result.value?.sheetDashboard?.tree ?? null)
 
   return { metrics, tree, loading, error, onError }
+}
+
+/**
+ * One-off query of project date ranges for the Gantt timeline, scoped to the
+ * given unit ids. Not a subscription — call `reload()` (or let the caller invoke
+ * it on mount / when units change). Returns the raw range rows.
+ *
+ * @param {number[]|import('vue').Ref<number[]>} unitIds Units of the signed-in user.
+ * @returns {{ ranges, loading, error, reload }}
+ */
+export function useRangeProjects(unitIds) {
+  const ranges = ref([])
+  const loading = ref(false)
+  const error = ref('')
+
+  async function reload() {
+    loading.value = true
+    error.value = ''
+    try {
+      const ids = (unref(unitIds) ?? []).map(Number).filter(Boolean)
+      const { data } = await apolloClient.query({
+        query: GET_RANGE_PROJECT,
+        // `search`/paging kept null: the timeline shows every project in scope.
+        variables: { params: { page: 1, pageSize: 100, search: null, unitIds: ids.length ? ids : null } },
+        fetchPolicy: 'network-only',
+      })
+      // `getRangeProject` returns the array directly (no `.data` envelope).
+      ranges.value = data?.getRangeProject ?? []
+    } catch (err) {
+      error.value = err?.graphQLErrors?.[0]?.message || 'Gagal memuat timeline project.'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { ranges, loading, error, reload }
 }

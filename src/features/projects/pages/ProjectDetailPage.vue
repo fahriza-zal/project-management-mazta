@@ -632,8 +632,8 @@ onMounted(async () => {
                           </div>
                         </div>
 
-                        <!-- Stat tiles -->
-                        <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        <!-- Stat tiles — kept lean: completion & schedule signals only -->
+                        <div class="mt-3 grid grid-cols-3 gap-3">
                           <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                             <p class="text-caption flex items-center gap-1">
                               <CheckCircleIcon class="h-3.5 w-3.5 text-emerald-500" />
@@ -671,53 +671,6 @@ onMounted(async () => {
                               }}</span>
                               <span class="text-sm font-medium text-slate-300"> / </span>
                               <span class="text-amber-600">{{ m.metric.completedLate ?? 0 }}</span>
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <ClockIcon class="h-3.5 w-3.5 text-sky-500" />
-                              Est / Actual
-                            </p>
-                            <p class="mt-0.5 text-sm font-bold text-slate-800">
-                              {{ secondsToHm(m.metric.estimatedSeconds) }}
-                              <span class="font-medium text-slate-400">/</span>
-                              {{ secondsToHm(m.metric.actualSeconds) }}
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <ArrowPathIcon class="h-3.5 w-3.5 text-violet-500" />
-                              Avg Cycle
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold text-slate-800">
-                              {{ secondsToDuration(m.metric.averageCycleTime) }}
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <ArrowTrendingUpIcon class="h-3.5 w-3.5 text-indigo-500" />
-                              Avg Lead
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold text-slate-800">
-                              {{ secondsToDuration(m.metric.averageLeadTime) }}
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <ArrowsRightLeftIcon class="h-3.5 w-3.5 text-slate-400" />
-                              Status Changes
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold text-slate-800">
-                              {{ m.metric.totalStatusChanges ?? 0 }}
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <DocumentIcon class="h-3.5 w-3.5 text-slate-400" />
-                              Attachments
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold text-slate-800">
-                              {{ m.metric.totalAttachments ?? 0 }}
                             </p>
                           </div>
                         </div>

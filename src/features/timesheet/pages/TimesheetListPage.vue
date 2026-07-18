@@ -159,9 +159,13 @@ function dotClass(state) {
 // Lifecycle actions apply to the user's own timesheets only (the Approval tab is
 // read-only). Running can be held or closed; other non-new states (hold, closed)
 // can be (re)started or closed; a brand-new sheet can only be started.
-const canStart = (row) => isOwnTab.value && stateOf(row) !== 'running' && auth.can(PERM.START)
+// A done (closed) timesheet is final: no more lifecycle actions on it.
+const isClosed = (row) => stateOf(row) === 'closed'
+const canStart = (row) =>
+  isOwnTab.value && !isClosed(row) && stateOf(row) !== 'running' && auth.can(PERM.START)
 const canHold = (row) => isOwnTab.value && stateOf(row) === 'running' && auth.can(PERM.HOLD)
-const canClose = (row) => isOwnTab.value && stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
+const canClose = (row) =>
+  isOwnTab.value && !isClosed(row) && stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
 
 /** PROJECT timesheets carry a project; COMMON (default-task) ones don't. */
 function typeLabel(row) {
@@ -735,17 +739,33 @@ onMounted(load)
         </div>
         <BaseCard :padded="false">
           <ul class="divide-y divide-slate-100">
-            <li v-for="row in g.rows" :key="row.id">
+            <li
+              v-for="row in g.rows"
+              :key="row.id"
+              :class="isClosed(row) ? 'border-l-2 border-emerald-400 bg-emerald-50/40' : ''"
+            >
               <div class="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
-                <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass(stateOf(row))" />
+                <CheckCircleIcon
+                  v-if="isClosed(row)"
+                  class="h-5 w-5 shrink-0 text-emerald-500"
+                />
+                <span
+                  v-else
+                  class="h-2 w-2 shrink-0 rounded-full"
+                  :class="dotClass(stateOf(row))"
+                />
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <span class="truncate font-medium text-slate-800">
+                    <span
+                      class="truncate font-medium"
+                      :class="isClosed(row) ? 'text-slate-500' : 'text-slate-800'"
+                    >
                       {{ row.task?.title || 'Untitled task' }}
                     </span>
                     <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
                       {{ typeLabel(row) }}
                     </BaseBadge>
+                    <BaseBadge v-if="isClosed(row)" color="success" size="sm" dot>Selesai</BaseBadge>
                     <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
                       <UserIcon class="h-3 w-3" />
                       {{ row.employee.fullName }}
@@ -753,14 +773,17 @@ onMounted(load)
                   </div>
                   <p class="mt-0.5 truncate text-xs text-slate-400">
                     <span v-if="row.project">{{ row.project.name }} · </span>
-                    <span>{{ statusLabel(row) }}</span>
+                    <span v-if="!isClosed(row)">{{ statusLabel(row) }}</span>
                     <span v-if="row.startTime">
-                      · {{ formatDateTime(row.startTime) }}
+                      <span v-if="!isClosed(row)">· </span>{{ formatDateTime(row.startTime) }}
                       <span v-if="row.endTime">– {{ formatDateTime(row.endTime) }}</span>
                     </span>
                   </p>
                 </div>
-                <span class="text-sm font-semibold tabular-nums text-slate-700">
+                <span
+                  class="text-sm font-semibold tabular-nums"
+                  :class="isClosed(row) ? 'text-emerald-600' : 'text-slate-700'"
+                >
                   {{ formatDuration(row.seconds) }}
                 </span>
                 <div class="flex items-center gap-1">

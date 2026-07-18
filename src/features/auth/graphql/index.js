@@ -33,6 +33,10 @@ export const LOGIN = gql`
             id
             fullName
           }
+          companies {
+            id
+            name
+          }
         }
       }
     }

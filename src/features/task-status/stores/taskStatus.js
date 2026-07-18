@@ -44,15 +44,27 @@ export const useTaskStatusStore = defineStore('taskStatus', () => {
 
   /**
    * Fetch a page of task status definitions.
-   * @param {{ page?: number, pageSize?: number, search?: string }} [params]
+   * `companyIds`/`unitIds` scope the list (used by the project Kanban board only);
+   * when omitted they aren't sent at all, so the master menu behaves as before.
+   * @param {{ page?: number, pageSize?: number, search?: string, companyIds?: number[], unitIds?: number[] }} [params]
    */
-  async function fetchList({ page = null, pageSize = null, search = null } = {}) {
+  async function fetchList({
+    page = null,
+    pageSize = null,
+    search = null,
+    companyIds = null,
+    unitIds = null,
+  } = {}) {
     loading.value = true
     error.value = ''
     try {
+      const params = { page, pageSize, search }
+      if (companyIds?.length) params.companyIds = companyIds
+      if (unitIds?.length) params.unitIds = unitIds
+
       const { data } = await apolloClient.query({
         query: LIST_TASK_STATUS,
-        variables: { params: { page, pageSize, search } },
+        variables: { params },
         fetchPolicy: 'network-only',
       })
 

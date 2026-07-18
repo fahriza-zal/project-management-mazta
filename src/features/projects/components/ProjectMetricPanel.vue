@@ -6,16 +6,8 @@ import {
   ShieldCheckIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  ClockIcon,
-  ArrowPathIcon,
-  ArrowTrendingUpIcon,
-  ArrowsRightLeftIcon,
   UsersIcon,
   FlagIcon,
-  BoltIcon,
-  ScaleIcon,
-  CalendarDaysIcon,
-  DocumentIcon,
   ChevronUpIcon,
   ChevronDownIcon,
 } from '@heroicons/vue/24/outline'
@@ -40,35 +32,6 @@ const hasMetric = computed(() => !!props.metric && Object.keys(props.metric).len
 // ── Formatting helpers ───────────────────────────────────────────────────────
 const round = (v) => Math.round(Number(v) || 0)
 
-/** Number → up to `digits` decimals, trailing zeros trimmed ("1.0" → "1"). */
-function num(v, digits = 1) {
-  const n = Number(v)
-  if (!Number.isFinite(n)) return '0'
-  return Number(n.toFixed(digits)).toString()
-}
-
-/** Total seconds → "8h 12m" (or "0m"). */
-function secondsToHm(total) {
-  const s = Number(total) || 0
-  const h = Math.floor(s / 3600)
-  const mm = Math.floor((s % 3600) / 60)
-  if (h && mm) return `${h}h ${mm}m`
-  if (h) return `${h}h`
-  return `${mm}m`
-}
-
-/** Seconds → "2d 4h" / "4h 30m" / "12m" for cycle/lead times that can span days. */
-function secondsToDuration(total) {
-  const s = Math.round(Number(total) || 0)
-  if (!s) return '—'
-  const d = Math.floor(s / 86400)
-  const h = Math.floor((s % 86400) / 3600)
-  const mm = Math.floor((s % 3600) / 60)
-  if (d) return h ? `${d}d ${h}h` : `${d}d`
-  if (h) return mm ? `${h}h ${mm}m` : `${h}h`
-  return `${mm}m`
-}
-
 /** Score 0–100 → semantic tone. `invert` for risk (high = bad). */
 function scoreTone(value, invert = false) {
   const v = Number(value) || 0
@@ -90,12 +53,12 @@ function scoreTint(value, invert = false) {
 
 const progress = computed(() => round(m.value.progress))
 
-// Secondary stat tiles — icon-driven, uniform styling.
+// Secondary stat tiles — kept lean: the few signals that actually drive decisions.
 const tiles = computed(() => [
   {
     key: 'completed',
     label: 'Completed Tasks',
-    value: m.value.completedTasks ?? 0,
+    value: `${m.value.completedTasks ?? 0} / ${m.value.totalTasks ?? 0}`,
     icon: CheckCircleIcon,
     tone: 'text-emerald-500',
   },
@@ -106,13 +69,6 @@ const tiles = computed(() => [
     icon: ExclamationTriangleIcon,
     tone: 'text-red-400',
     danger: (m.value.overdueTasks || 0) > 0,
-  },
-  {
-    key: 'onTimeLate',
-    label: 'On Time / Late',
-    value: `${m.value.completedOnTime ?? 0} / ${m.value.completedLate ?? 0}`,
-    icon: FlagIcon,
-    tone: 'text-slate-400',
   },
   {
     key: 'milestones',
@@ -127,69 +83,6 @@ const tiles = computed(() => [
     value: m.value.activeMembers ?? 0,
     icon: UsersIcon,
     tone: 'text-violet-500',
-  },
-  {
-    key: 'perMember',
-    label: 'Avg Tasks / Member',
-    value: num(m.value.averageTaskPerMember),
-    icon: UsersIcon,
-    tone: 'text-indigo-500',
-  },
-  {
-    key: 'efficiency',
-    label: 'Efficiency',
-    value: `${round(m.value.efficiency)}%`,
-    icon: BoltIcon,
-    tone: 'text-amber-500',
-  },
-  {
-    key: 'throughput',
-    label: 'Throughput',
-    value: num(m.value.throughput),
-    icon: ArrowTrendingUpIcon,
-    tone: 'text-sky-500',
-  },
-  {
-    key: 'schedule',
-    label: 'Schedule Variance',
-    value: num(m.value.scheduleVariance, 2),
-    icon: ScaleIcon,
-    tone: 'text-slate-400',
-  },
-  {
-    key: 'cycle',
-    label: 'Avg Cycle Time',
-    value: secondsToDuration(m.value.averageCycleTime),
-    icon: ArrowPathIcon,
-    tone: 'text-violet-500',
-  },
-  {
-    key: 'lead',
-    label: 'Avg Lead Time',
-    value: secondsToDuration(m.value.averageLeadTime),
-    icon: ArrowsRightLeftIcon,
-    tone: 'text-indigo-500',
-  },
-  {
-    key: 'estActual',
-    label: 'Est / Actual',
-    value: `${secondsToHm(m.value.estimatedSeconds)} / ${secondsToHm(m.value.actualSeconds)}`,
-    icon: ClockIcon,
-    tone: 'text-sky-500',
-  },
-  {
-    key: 'age',
-    label: 'Project Age',
-    value: `${m.value.projectAgeDays ?? 0}d`,
-    icon: CalendarDaysIcon,
-    tone: 'text-slate-400',
-  },
-  {
-    key: 'attachments',
-    label: 'Attachments',
-    value: m.value.totalAttachments ?? 0,
-    icon: DocumentIcon,
-    tone: 'text-slate-400',
   },
 ])
 </script>
@@ -291,7 +184,7 @@ const tiles = computed(() => [
         </div>
 
         <!-- Secondary stat tiles -->
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div
             v-for="tile in tiles"
             :key="tile.key"

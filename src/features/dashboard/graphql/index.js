@@ -10,18 +10,40 @@ import { gql } from '@apollo/client/core'
 export const GET_RANGE_PROJECT = gql`
   query GetRangeProject($params: ProjectParams) {
     getRangeProject(params: $params) {
+      startDate
       endDate
       expectedEndDate
-      startDate
       project {
         id
         name
+        description
         projectCategory
         projectMode
         prefix
         fullCode
+        expectedEndDate
+        startDate
+        endDate
         isClosed
         isLocked
+        milestones {
+          id
+          name
+          status
+          tasks {
+            id
+            title
+            assignments {
+              employee {
+                id
+                fullName
+              }
+            }
+            startedAt
+            dueDate
+            doneAt
+          }
+        }
       }
     }
   }

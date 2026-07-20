@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apolloClient } from '@/shared/graphql/apolloClient'
-import { LOGIN, LOGOUT } from '@/features/auth/graphql'
+import { LOGIN, LOGOUT, CHANGE_PASSWORD } from '@/features/auth/graphql'
 
 const TOKEN_KEY = 'pm_token'
 const PROFILE_KEY = 'pm_profile'
@@ -149,5 +149,51 @@ export const useAuthStore = defineStore('auth', () => {
     apolloClient.clearStore().catch(() => {})
   }
 
-  return { token, user, employee, profile, isAuthenticated, can, login, hydrate, logout }
+  /**
+   * Change the signed-in user's password. The mutation runs authenticated with
+   * the current token; on success the API returns a fresh session (token + user +
+   * employee) — the old token is invalidated. We re-seat the store with that new
+   * session, exactly like a fresh login, so the user stays signed in seamlessly.
+   * @param {{ oldPassword: string, newPassword: string }} input
+   * @throws Error with a user-friendly message on failure.
+   */
+  async function changePassword(input) {
+    let result
+    try {
+      result = await apolloClient.mutate({
+        mutation: CHANGE_PASSWORD,
+        variables: { input },
+        fetchPolicy: 'no-cache',
+      })
+    } catch (err) {
+      const gqlMessage = err?.graphQLErrors?.[0]?.message
+      throw new Error(gqlMessage || 'Gagal mengubah password. Coba lagi.')
+    }
+
+    const data = result?.data?.changePassword?.data
+    if (!data?.token) {
+      throw new Error('Gagal mengubah password. Coba lagi.')
+    }
+
+    // Re-seat the session with the fresh token (and refreshed user/employee if
+    // returned), same as login — keeps the user signed in with the new token.
+    token.value = data.token
+    if (data.user) user.value = data.user
+    if (data.employee) employee.value = data.employee
+    persist()
+    return profile.value
+  }
+
+  return {
+    token,
+    user,
+    employee,
+    profile,
+    isAuthenticated,
+    can,
+    login,
+    hydrate,
+    logout,
+    changePassword,
+  }
 })

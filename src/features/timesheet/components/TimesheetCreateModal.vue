@@ -58,11 +58,11 @@ function humanize(name) {
     .join(' ')
 }
 
-/** availableTasks → BaseSelect options, category shown as a prefix. */
+/** availableTasks → BaseSelect options, category prefix + project name (if any). */
 const taskOptions = computed(() =>
   availableTasks.value.map((t) => ({
     value: taskKey(t),
-    label: `[${humanize(t.category)}] ${t.title}`,
+    label: `[${humanize(t.category)}] ${t.title}${t.projectName ? ` — ${t.projectName}` : ''}`,
   })),
 )
 

@@ -495,14 +495,15 @@ const legend = [
             <!-- Task sub-rows -->
             <template v-if="isOpen(r.id)">
               <div v-for="t in r.tasks" :key="'trow-' + r.id + '-' + t.id" class="relative h-14">
-                <div class="absolute inset-x-0 top-1/2 -translate-y-1/2">
+                <!-- Bar band -->
+                <div class="absolute inset-x-0 top-3.5">
                   <div class="relative h-4">
                     <!-- Planned track: mulai → tenggat -->
                     <div
                       class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-slate-100"
                       :style="seg(t.start, t.plannedEnd)"
                     />
-                    <!-- Colored fill by phase -->
+                    <!-- Progress fill by phase -->
                     <div
                       class="absolute top-1/2 h-2 min-w-[3px] -translate-y-1/2 rounded-full opacity-90"
                       :class="STATE[t.state].fill"
@@ -516,13 +517,13 @@ const legend = [
                       :style="seg(t.plannedEnd, today)"
                       :title="taskTitle(t)"
                     />
-                    <!-- Start dot -->
+                    <!-- Start dot (mulai) -->
                     <span
                       class="absolute top-1/2 z-20 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-slate-400 shadow-sm"
                       :style="at(t.start)"
                       :title="`Mulai: ${fmt(t.start)}`"
                     />
-                    <!-- Due diamond -->
+                    <!-- Due diamond (estimasi selesai) -->
                     <span
                       v-if="t.due != null && t.done == null"
                       class="absolute top-1/2 z-20 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] border-2 border-white shadow-sm"
@@ -530,7 +531,7 @@ const legend = [
                       :style="at(t.due)"
                       :title="`Tenggat: ${fmt(t.due)}`"
                     />
-                    <!-- Done check -->
+                    <!-- Done check (selesai) -->
                     <span
                       v-if="t.done != null"
                       class="absolute top-1/2 z-30 flex h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-sm"
@@ -540,6 +541,31 @@ const legend = [
                       <CheckIcon class="h-2 w-2 text-white" />
                     </span>
                   </div>
+                </div>
+
+                <!-- Date captions under the task bar (mulai → estimasi/selesai) -->
+                <div class="absolute inset-x-0 bottom-0.5 h-4">
+                  <span
+                    class="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-slate-500"
+                    :style="at(t.start)"
+                  >
+                    {{ fmt(t.start, false) }}
+                  </span>
+                  <span
+                    v-if="t.done != null"
+                    class="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-emerald-600"
+                    :style="at(t.done)"
+                  >
+                    {{ fmt(t.done, false) }}
+                  </span>
+                  <span
+                    v-else-if="t.due != null"
+                    class="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-medium"
+                    :class="t.overdue ? 'text-rose-500' : 'text-amber-600'"
+                    :style="at(t.due)"
+                  >
+                    {{ fmt(t.due, false) }}
+                  </span>
                 </div>
               </div>
             </template>

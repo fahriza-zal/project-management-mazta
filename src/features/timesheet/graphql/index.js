@@ -14,9 +14,11 @@ import { gql } from '@apollo/client/core'
 
 /**
  * Signed-in employee with the tasks assignable to them. Variables: { getEmployeeId: Int! }.
- * `availableTasks` is a JSON scalar — an array of { id, category, title, priority };
- * `category` decides whether a chosen task is sent as `taskId` (PROJECT) or
- * `defaultTaskId` (COMMON) on create, and also drives `sheetType`.
+ * `availableTasks` is an array of { task, category, priority } where `task` is a
+ * union: a `Task` (PROJECT — carries milestone.project) or a `DefaultTask`
+ * (COMMON — id/title only). `category` decides whether a chosen task is sent as
+ * `taskId` (PROJECT) or `defaultTaskId` (COMMON) on create, and drives `sheetType`.
+ * The store flattens this into { id, title, category, priority, projectName }.
  */
 export const GET_EMPLOYEE = gql`
   query GetEmployee($getEmployeeId: Int!) {
@@ -24,7 +26,26 @@ export const GET_EMPLOYEE = gql`
       data {
         id
         fullName
-        availableTasks
+        availableTasks {
+          task {
+            ... on Task {
+              id
+              title
+              milestone {
+                project {
+                  id
+                  name
+                }
+              }
+            }
+            ... on DefaultTask {
+              id
+              title
+            }
+          }
+          category
+          priority
+        }
       }
     }
   }

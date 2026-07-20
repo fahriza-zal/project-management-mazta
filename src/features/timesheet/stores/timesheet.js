@@ -163,9 +163,10 @@ export const useTimesheetStore = defineStore('timesheet', () => {
   }
 
   /**
-   * Tasks assignable to an employee (mixed PROJECT + COMMON). Returns the raw
-   * `availableTasks` array — `category` is needed to route the chosen task to
-   * `taskId` vs `defaultTaskId` (and to derive `sheetType`) on create.
+   * Tasks assignable to an employee (mixed PROJECT + COMMON), flattened to
+   * `{ id, title, category, priority, projectName }`. The API nests each item as
+   * `{ task: Task|DefaultTask, category, priority }`; `category` routes the chosen
+   * task to `taskId` vs `defaultTaskId` (and derives `sheetType`) on create.
    */
   async function fetchEmployeeTasks(employeeId) {
     const { data } = await apolloClient.query({
@@ -173,7 +174,14 @@ export const useTimesheetStore = defineStore('timesheet', () => {
       variables: { getEmployeeId: Number(employeeId) },
       fetchPolicy: 'network-only',
     })
-    return data?.getEmployee?.data?.availableTasks ?? []
+    const list = data?.getEmployee?.data?.availableTasks ?? []
+    return list.map((a) => ({
+      id: a.task?.id,
+      title: a.task?.title,
+      category: a.category,
+      priority: a.priority,
+      projectName: a.task?.milestone?.project?.name ?? '',
+    }))
   }
 
   return {

@@ -97,10 +97,14 @@ async function onSubmit() {
         :error="errors.name"
       />
 
-      <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3">
+      <div
+        class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3"
+      >
         <div>
           <p class="text-sm font-medium text-slate-800">Watcher</p>
-          <p class="text-xs text-slate-400">Members with this role only watch, they aren't assignable.</p>
+          <p class="text-xs text-slate-400">
+            Members with this role only watch, they aren't assignable.
+          </p>
         </div>
         <button
           type="button"

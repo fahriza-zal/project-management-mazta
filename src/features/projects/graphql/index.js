@@ -567,6 +567,42 @@ export const EDIT_TASK = gql`
 `
 
 /**
+ * Statuses a project may be set to, from `listProjectStatusDefinition`, scoped by
+ * the signed-in employee's units & companies. Variables: { params: ProjectStatusDefinitionParams }
+ * where params = { unitIds, companyIds, pageSize }. Returns [{ id, name, ordering, isClosed }].
+ */
+export const LIST_PROJECT_STATUS_OPTIONS = gql`
+  query ListProjectStatusOptions($params: ProjectStatusDefinitionParams) {
+    listProjectStatusDefinition(params: $params) {
+      data {
+        results {
+          id
+          name
+          ordering
+          isClosed
+        }
+      }
+    }
+  }
+`
+
+/**
+ * Move a project to another status. Distinct from EDIT_PROJECT (which edits project
+ * fields via ProjectInput): this takes an UpdateProjectInput of the status change.
+ * Variables: { updateProjectId: Int!, input: UpdateProjectInput! } where input =
+ * { employeeId, newStatusId, oldStatusId }.
+ */
+export const UPDATE_PROJECT_STATUS = gql`
+  mutation UpdateProject($updateProjectId: Int!, $input: UpdateProjectInput!) {
+    updateProject(id: $updateProjectId, input: $input) {
+      data {
+        name
+      }
+    }
+  }
+`
+
+/**
  * Move a task to another status (used by the Kanban drag & drop). This is a distinct
  * operation from EDIT_TASK: it takes an UpdateTaskInput of the status change, not TaskInput.
  * Variables: { updateTaskId: Int!, input: UpdateTaskInput! } where input =

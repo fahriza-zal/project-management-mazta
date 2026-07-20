@@ -38,6 +38,7 @@ import TaskAssignModal from '@/features/projects/components/TaskAssignModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
 import AttachmentUploader from '@/features/projects/components/AttachmentUploader.vue'
 import ProjectMetricPanel from '@/features/projects/components/ProjectMetricPanel.vue'
+import ProjectStatusUpdateModal from '@/features/projects/components/ProjectStatusUpdateModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +54,9 @@ function canToggleTaskLock(task) {
 const project = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
+
+// Project status update modal
+const statusModalOpen = ref(false)
 
 // Task-assign modal
 const assignOpen = ref(false)
@@ -295,6 +299,16 @@ async function onAssigned() {
   }
 }
 
+/** Refresh after a status change so the new status badge shows up. */
+async function onStatusUpdated() {
+  success('Status project berhasil diperbarui.')
+  try {
+    await loadProject()
+  } catch (err) {
+    toastError(err.message)
+  }
+}
+
 // ── Lock / unlock task (with confirmation) ───────────────────────────────────
 const lockState = ref({ open: false, task: null, loading: false })
 
@@ -358,9 +372,8 @@ onMounted(async () => {
         description="The project you’re looking for doesn’t exist."
       />
     </div>
-  
+
     <template v-else-if="project">
-      
       <!-- ── Breadcrumb ──────────────────────────────────────────────────── -->
       <nav class="flex items-center gap-1.5 text-xs text-slate-400">
         <router-link :to="{ name: 'dashboard' }" class="hover:text-primary-600"
@@ -404,6 +417,14 @@ onMounted(async () => {
           <BaseButton variant="outline" @click="goToBoard">
             <ViewColumnsIcon class="h-4 w-4" />
             Board
+          </BaseButton>
+          <BaseButton
+            v-if="auth.can(PERM.UPDATE_STATUS)"
+            variant="outline"
+            @click="statusModalOpen = true"
+          >
+            <ArrowsRightLeftIcon class="h-4 w-4" />
+            Ubah Status
           </BaseButton>
           <BaseButton v-if="auth.can(PERM.EDIT)" variant="primary" @click="goToEdit">
             <PencilSquareIcon class="h-4 w-4" />
@@ -1135,6 +1156,12 @@ onMounted(async () => {
         </div>
       </div>
     </template>
+
+    <ProjectStatusUpdateModal
+      v-model="statusModalOpen"
+      :project="project"
+      @updated="onStatusUpdated"
+    />
 
     <TaskAssignModal v-model="assignOpen" :task="activeTask" @saved="onAssigned" />
 

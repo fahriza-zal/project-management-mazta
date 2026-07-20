@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectRoleStore } from '@/features/project-role/stores/projectRole'
+import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/project-role/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import {
   PlusIcon,
@@ -24,6 +26,7 @@ const PAGE_SIZE = 10
 const DEBOUNCE_MS = 300
 
 const store = useProjectRoleStore()
+const auth = useAuthStore()
 const { items, pagination, loading } = storeToRefs(store)
 const { success, error: toastError } = useToast()
 
@@ -110,7 +113,7 @@ onMounted(load)
         <h1 class="text-heading">Project Role</h1>
         <p class="text-body mt-1">{{ pagination.count }} project role(s)</p>
       </div>
-      <BaseButton variant="primary" @click="openCreate">
+      <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
         <PlusIcon class="h-4 w-4" />
         Create Project Role
       </BaseButton>
@@ -137,7 +140,7 @@ onMounted(load)
         title="No project roles found"
         description="Create a project role to define who can be assigned to a project."
       >
-        <template #action>
+        <template v-if="auth.can(PERM.CREATE)" #action>
           <BaseButton variant="primary" @click="openCreate">
             <PlusIcon class="h-4 w-4" /> Create Project Role
           </BaseButton>
@@ -156,6 +159,7 @@ onMounted(load)
         <template #row-actions="{ row }">
           <div class="flex items-center justify-end gap-1">
             <button
+              v-if="auth.can(PERM.EDIT)"
               class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-primary-600"
               title="Edit"
               @click="openEdit(row)"
@@ -163,6 +167,7 @@ onMounted(load)
               <PencilSquareIcon class="h-4 w-4" />
             </button>
             <button
+              v-if="auth.can(PERM.DELETE)"
               class="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-danger"
               title="Delete"
               @click="askDelete(row)"

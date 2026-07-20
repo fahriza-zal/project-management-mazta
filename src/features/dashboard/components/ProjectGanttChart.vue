@@ -75,24 +75,27 @@ function assigneeNames(task) {
   return names
 }
 
-// Normalize task nodes into placeable sub-bars.
+// Normalize task nodes into placeable sub-bars. Every task gets a visible bar —
+// including ones not yet started (no startedAt): those render a neutral "pending"
+// track spanning today → dueDate (or a small pill when no dates are set at all).
 function normalizeTasks(project) {
   const out = []
   for (const ms of project?.milestones ?? []) {
     for (const t of ms?.tasks ?? []) {
-      const start = parseDay(t.startedAt)
+      const start = parseDay(t.startedAt) // real start, may be null
       const due = parseDay(t.dueDate)
       const done = parseDay(t.doneAt)
-      // Need at least one anchor to place the bar on the timeline.
-      const anchor = start ?? done ?? due
-      if (anchor == null) continue
-      const s = start ?? anchor
-      const plannedEnd = due ?? done ?? s
+      const started = start != null
       const isDone = done != null
+      // Positioning anchor: real start, else the due window (today → due, or the
+      // overdue span due → today), else the done date, else just today.
+      const barStart = started ? start : due != null ? Math.min(today, due) : (done ?? today)
+      const plannedEnd = done ?? due ?? barStart
       const overdue = !isDone && due != null && today > due
-      const barEnd = isDone ? done : (due ?? s)
-      const fillEnd = isDone ? done : Math.min(today, plannedEnd ?? today)
-      const state = isDone ? 'done' : overdue ? 'overdue' : 'active'
+      // Progress fill: full when done, up to today while running, none when pending.
+      const fillEnd = isDone ? done : started ? Math.min(today, plannedEnd) : barStart
+      const state = isDone ? 'done' : overdue ? 'overdue' : started ? 'active' : 'pending'
+      const barEnd = isDone ? done : (due ?? barStart)
       const names = assigneeNames(t)
       out.push({
         id: t.id,
@@ -100,18 +103,20 @@ function normalizeTasks(project) {
         milestone: ms.name || '',
         names,
         assignee: names.length ? names.join(', ') : 'Belum ditugaskan',
-        start: s,
+        start, // actual startedAt (null if not started) — used for the caption
+        barStart, // positioning anchor — used for the bar/track/fill/start dot
         due,
         done,
         barEnd,
         plannedEnd,
         fillEnd,
         overdue,
+        started,
         state,
       })
     }
   }
-  return out.sort((a, b) => a.start - b.start)
+  return out.sort((a, b) => a.barStart - b.barStart)
 }
 
 // Normalize rows into placeable bars; drop anything without a start date.
@@ -169,8 +174,8 @@ const domain = computed(() => {
     min = Math.min(min, r.start)
     max = Math.max(max, r.plannedEnd ?? r.start, r.actEnd ?? r.start)
     for (const t of r.tasks) {
-      min = Math.min(min, t.start)
-      max = Math.max(max, t.barEnd ?? t.start, t.plannedEnd ?? t.start)
+      min = Math.min(min, t.barStart)
+      max = Math.max(max, t.barEnd ?? t.barStart, t.plannedEnd ?? t.barStart)
     }
   }
   const pad = Math.max(3 * DAY, Math.round((max - min) * 0.05))
@@ -229,6 +234,7 @@ const STATE = {
   active: { fill: 'bg-blue-500', label: 'Berjalan' },
   done: { fill: 'bg-emerald-500', label: 'Selesai' },
   overdue: { fill: 'bg-rose-500', label: 'Terlambat' },
+  pending: { fill: 'bg-slate-300', label: 'Belum mulai' },
 }
 
 function barTitle(r) {
@@ -246,7 +252,7 @@ function taskTitle(t) {
     t.title,
     t.milestone ? `Milestone: ${t.milestone}` : null,
     `Dikerjakan: ${t.assignee}`,
-    `${t.done ? 'Selesai' : t.overdue ? 'Terlambat' : 'Berjalan'}: ${range}`,
+    `${STATE[t.state].label}: ${range}`,
   ]
     .filter(Boolean)
     .join('\n')
@@ -369,10 +375,12 @@ const legend = [
                 </p>
                 <p
                   class="flex items-center gap-1 truncate text-[11px] text-slate-400"
-                  :title="`Awal ${fmt(t.start)} · Estimasi selesai ${fmt(t.due)}`"
+                  :title="`Awal ${t.started ? fmt(t.start) : 'belum mulai'} · Estimasi selesai ${fmt(t.due)}`"
                 >
                   <CalendarDaysIcon class="h-3 w-3 shrink-0" />
-                  <span class="text-emerald-600">{{ fmt(t.start, false) }}</span>
+                  <span :class="t.started ? 'text-emerald-600' : 'italic text-slate-400'">
+                    {{ t.started ? fmt(t.start, false) : 'Belum mulai' }}
+                  </span>
                   <span class="text-slate-300">→</span>
                   <span :class="t.overdue ? 'text-rose-500' : 'text-amber-600'">
                     {{ t.due != null ? fmt(t.due, false) : '—' }}
@@ -498,16 +506,19 @@ const legend = [
                 <!-- Bar band -->
                 <div class="absolute inset-x-0 top-3.5">
                   <div class="relative h-4">
-                    <!-- Planned track: mulai → tenggat -->
+                    <!-- Planned track: mulai → tenggat (always visible, even pending) -->
                     <div
-                      class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-slate-100"
-                      :style="seg(t.start, t.plannedEnd)"
+                      class="absolute top-1/2 h-2 min-w-[3px] -translate-y-1/2 rounded-full"
+                      :class="t.started ? 'bg-slate-100' : 'gantt-pending'"
+                      :style="seg(t.barStart, t.plannedEnd)"
+                      :title="taskTitle(t)"
                     />
-                    <!-- Progress fill by phase -->
+                    <!-- Progress fill by phase (none while pending) -->
                     <div
+                      v-if="t.started || t.done != null"
                       class="absolute top-1/2 h-2 min-w-[3px] -translate-y-1/2 rounded-full opacity-90"
                       :class="STATE[t.state].fill"
-                      :style="seg(t.start, t.fillEnd)"
+                      :style="seg(t.barStart, t.fillEnd)"
                       :title="taskTitle(t)"
                     />
                     <!-- Overdue overrun: tenggat → hari ini (hatched) -->
@@ -517,11 +528,12 @@ const legend = [
                       :style="seg(t.plannedEnd, today)"
                       :title="taskTitle(t)"
                     />
-                    <!-- Start dot (mulai) -->
+                    <!-- Start dot (mulai) — hollow while not started -->
                     <span
-                      class="absolute top-1/2 z-20 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-slate-400 shadow-sm"
-                      :style="at(t.start)"
-                      :title="`Mulai: ${fmt(t.start)}`"
+                      class="absolute top-1/2 z-20 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm"
+                      :class="t.started ? 'bg-slate-400' : 'bg-slate-300 ring-1 ring-slate-300'"
+                      :style="at(t.barStart)"
+                      :title="t.started ? `Mulai: ${fmt(t.start)}` : 'Belum mulai'"
                     />
                     <!-- Due diamond (estimasi selesai) -->
                     <span
@@ -546,10 +558,18 @@ const legend = [
                 <!-- Date captions under the task bar (mulai → estimasi/selesai) -->
                 <div class="absolute inset-x-0 bottom-0.5 h-4">
                   <span
+                    v-if="t.started"
                     class="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-slate-500"
                     :style="at(t.start)"
                   >
                     {{ fmt(t.start, false) }}
+                  </span>
+                  <span
+                    v-else
+                    class="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-slate-400"
+                    :style="at(t.barStart)"
+                  >
+                    Belum mulai
                   </span>
                   <span
                     v-if="t.done != null"
@@ -585,6 +605,17 @@ const legend = [
     #e11d48 4px,
     #fda4af 4px,
     #fda4af 8px
+  );
+}
+
+/* Neutral striped track for tasks not yet started (pending). */
+.gantt-pending {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #e2e8f0,
+    #e2e8f0 4px,
+    #f1f5f9 4px,
+    #f1f5f9 8px
   );
 }
 </style>

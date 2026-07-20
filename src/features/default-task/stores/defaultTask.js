@@ -44,7 +44,7 @@ export const useDefaultTaskStore = defineStore('defaultTask', () => {
         variables: { params: { page, pageSize, search } },
         fetchPolicy: 'network-only',
       })
-      
+
       const result = data?.listDefaultTask?.data
       items.value = result?.results ?? []
       pagination.value = {

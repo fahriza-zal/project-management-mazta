@@ -94,7 +94,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
         type="text"
         placeholder="Search units…"
         class="block h-10 w-full rounded-xl border bg-white/70 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 backdrop-blur focus-ring"
-        :class="error ? 'border-danger focus:ring-danger/30 focus:border-danger' : 'border-white/70'"
+        :class="
+          error ? 'border-danger focus:ring-danger/30 focus:border-danger' : 'border-white/70'
+        "
         @focus="openDropdown"
         @input="onSearch($event.target.value)"
       />

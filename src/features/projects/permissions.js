@@ -9,6 +9,7 @@ export const PERM = {
   GET: 'getProject',
   CREATE: 'createProject',
   EDIT: 'editProject',
+  UPDATE_STATUS: 'updateProject',
   DELETE: 'deleteProject',
   LOCK: 'lockProject',
   UNLOCK: 'unlockProject',
@@ -20,6 +21,7 @@ export const PERM = {
   LOCK_TASK: 'lockTask',
   UNLOCK_TASK: 'unlockTask',
   ASSIGN_TASK: 'createTaskAssignment',
+  COMMENT: 'createTaskComment',
   // Attachment (project & task share one mutation)
   CREATE_ATTACHMENT: 'createProjectAttachment',
 }

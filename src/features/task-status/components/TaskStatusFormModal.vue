@@ -83,7 +83,8 @@ watch(
 function validate() {
   const e = {}
   if (!form.value.name.trim()) e.name = 'Name is required'
-  if (form.value.ordering === '' || form.value.ordering === null) e.ordering = 'Ordering is required'
+  if (form.value.ordering === '' || form.value.ordering === null)
+    e.ordering = 'Ordering is required'
   errors.value = e
   return Object.keys(e).length === 0
 }
@@ -143,7 +144,9 @@ async function onSubmit() {
       </div>
 
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3">
+        <div
+          class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3"
+        >
           <div>
             <p class="text-sm font-medium text-slate-800">Closed status</p>
             <p class="text-xs text-slate-400">Tasks here count as finished.</p>
@@ -163,7 +166,9 @@ async function onSubmit() {
           </button>
         </div>
 
-        <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3">
+        <div
+          class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3"
+        >
           <div>
             <p class="text-sm font-medium text-slate-800">Default status</p>
             <p class="text-xs text-slate-400">Applied to new tasks.</p>

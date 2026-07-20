@@ -18,6 +18,8 @@ import {
   CREATE_TASK,
   EDIT_TASK,
   UPDATE_TASK_STATUS,
+  LIST_PROJECT_STATUS_OPTIONS,
+  UPDATE_PROJECT_STATUS,
   DELETE_TASK,
   LOCK_PROJECT,
   UNLOCK_PROJECT,
@@ -311,6 +313,53 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * Project status options from `listProjectStatusDefinition`, scoped to the
+   * signed-in employee's units & companies. Returns [{ id, name, ordering, isClosed }].
+   * @param {{ unitIds?: number[], companyIds?: number[] }} [params]
+   */
+  async function fetchProjectStatusOptions({ unitIds = null, companyIds = null } = {}) {
+    const { data } = await apolloClient.query({
+      query: LIST_PROJECT_STATUS_OPTIONS,
+      variables: {
+        params: {
+          pageSize: 100,
+          unitIds: unitIds?.length ? unitIds.map(Number) : null,
+          companyIds: companyIds?.length ? companyIds.map(Number) : null,
+        },
+      },
+      fetchPolicy: 'network-only',
+    })
+    return data?.listProjectStatusDefinition?.data?.results ?? []
+  }
+
+  /**
+   * Move a project to another status. Distinct from `updateProject` (which edits
+   * project fields via editProject); this hits the `updateProject` status mutation
+   * with an UpdateProjectInput.
+   * @param {{ projectId, newStatusId, oldStatusId, employeeId }} params
+   *   `employeeId` = the signed-in employee (from the auth store / `pm_profile`).
+   * @returns updated `{ name }`
+   */
+  async function updateProjectStatus({ projectId, newStatusId, oldStatusId, employeeId }) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: UPDATE_PROJECT_STATUS,
+        variables: {
+          updateProjectId: Number(projectId),
+          input: {
+            newStatusId: newStatusId == null ? null : Number(newStatusId),
+            oldStatusId: oldStatusId == null ? null : Number(oldStatusId),
+            employeeId: employeeId == null ? null : Number(employeeId),
+          },
+        },
+      })
+      return data?.updateProject?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal memperbarui status project.'))
+    }
+  }
+
   /** Soft-delete a task by id (hard is always false). */
   async function deleteTask(id) {
     try {
@@ -536,6 +585,8 @@ export const useProjectStore = defineStore('project', () => {
     createTask,
     updateTask,
     updateTaskStatus,
+    fetchProjectStatusOptions,
+    updateProjectStatus,
     deleteTask,
     fetchParentOptions,
     fetchUnitOptions,

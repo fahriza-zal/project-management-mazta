@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useProjectStore } from '@/features/projects/stores/project'
 import { useAuthStore } from '@/features/auth/stores/auth'
+import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
 import { formatDate } from '@/shared/utils/format'
 import {
@@ -128,7 +129,7 @@ async function submit() {
       </button>
 
       <!-- Add comment -->
-      <div class="flex items-end gap-2">
+      <div v-if="auth.can(PERM.COMMENT)" class="flex items-end gap-2">
         <textarea
           v-model="draft"
           rows="1"

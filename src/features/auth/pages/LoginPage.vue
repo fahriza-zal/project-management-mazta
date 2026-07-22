@@ -1,10 +1,12 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { useToast } from '@/shared/composables/useToast'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
+import { CubeIcon } from '@heroicons/vue/24/solid'
 import AuthLayout from '@/app/layouts/AuthLayout.vue'
+import BaseInput from '@/shared/components/base/BaseInput.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,18 +17,6 @@ const form = ref({ username: '', password: '', platform: 'EMPLOYEE' })
 const errors = ref({})
 const showPassword = ref(false)
 const loading = ref(false)
-
-// Shared pill-input styling; error state swaps the border/ring to danger.
-function fieldClass(hasError) {
-  return [
-    'h-12 w-full rounded-full border bg-slate-50 px-5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:bg-white focus:outline-none focus:ring-2',
-    hasError
-      ? 'border-danger focus:border-danger focus:ring-danger/25'
-      : 'border-slate-200 focus:border-primary-400 focus:ring-primary-500/30',
-  ]
-}
-const usernameClass = computed(() => fieldClass(!!errors.value.username))
-const passwordClass = computed(() => fieldClass(!!errors.value.password))
 
 function validate() {
   const e = {}
@@ -56,8 +46,8 @@ async function onSubmit() {
   }
 }
 
-// Visual-only actions from the template — this is a staff-only internal app with
-// no self-signup or social sign-on, so these just inform the user.
+// Visual-only actions from the template — staff-only internal app, no self-signup
+// or social sign-on, so these just inform the user.
 function notAvailable() {
   error('Fitur ini belum tersedia. Silakan masuk dengan username & password.')
 }
@@ -65,82 +55,62 @@ function notAvailable() {
 
 <template>
   <AuthLayout>
-    <!-- Heading -->
-    <div class="text-center">
-      <h1 class="text-2xl font-bold tracking-tight text-slate-900">Welcome Back</h1>
-      <p class="mt-2 text-sm text-slate-500">Masuk untuk melanjutkan ke workspace Anda.</p>
+    <!-- Logo -->
+    <div class="mb-6 flex items-center justify-center gap-2">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-glow">
+        <CubeIcon class="h-5 w-5" />
+      </div>
     </div>
 
-    <form class="mt-7 space-y-4" @submit.prevent="onSubmit">
-      <!-- Username -->
-      <div>
-        <input
-          v-model="form.username"
-          type="text"
-          placeholder="Username"
-          autocomplete="username"
-          :class="usernameClass"
-        />
-        <p v-if="errors.username" class="mt-1.5 px-3 text-xs text-danger">{{ errors.username }}</p>
-      </div>
+    <h2 class="mb-5 text-center text-xl font-bold text-slate-800">Sign in to your account</h2>
 
-      <!-- Password -->
-      <div>
-        <div class="relative">
-          <input
+    <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-xl sm:p-7">
+      <form class="space-y-4" @submit.prevent="onSubmit">
+        <BaseInput
+          v-model="form.username"
+          label="Username"
+          type="text"
+          placeholder="your username"
+          autocomplete="username"
+          :error="errors.username"
+        />
+
+        <div>
+          <div class="mb-1.5 flex items-center justify-between">
+            <label class="text-sm font-medium text-slate-700">Password</label>
+          </div>
+          <BaseInput
             v-model="form.password"
             :type="showPassword ? 'text' : 'password'"
-            placeholder="Password"
+            placeholder="••••••••"
             autocomplete="current-password"
-            :class="[passwordClass, 'pr-12']"
-          />
-          <button
-            type="button"
-            class="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600"
-            @click="showPassword = !showPassword"
+            :error="errors.password"
           >
-            <EyeSlashIcon v-if="showPassword" class="h-5 w-5" />
-            <EyeIcon v-else class="h-5 w-5" />
-          </button>
+            <template #suffix>
+              <button
+                type="button"
+                class="text-slate-400 hover:text-slate-600"
+                @click="showPassword = !showPassword"
+              >
+                <EyeSlashIcon v-if="showPassword" class="h-4 w-4" />
+                <EyeIcon v-else class="h-4 w-4" />
+              </button>
+            </template>
+          </BaseInput>
         </div>
-        <p v-if="errors.password" class="mt-1.5 px-3 text-xs text-danger">{{ errors.password }}</p>
-      </div>
 
-      <!-- Forgot password -->
-      <div class="flex justify-end">
-        <a
-          href="#"
-          class="text-sm font-medium text-primary-600 hover:text-primary-700"
-          @click.prevent="notAvailable"
+        <button
+          type="submit"
+          :disabled="loading"
+          class="bg-brand flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white shadow-glow transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Forgot Password?
-        </a>
-      </div>
-
-      <!-- Login -->
-      <button
-        type="submit"
-        :disabled="loading"
-        class="bg-brand flex h-12 w-full items-center justify-center rounded-full text-sm font-semibold text-white shadow-glow transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        <span
-          v-if="loading"
-          class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
-        />
-        <span v-else>Login</span>
-      </button>
-    </form>
-
-    <!-- Sign up -->
-    <p class="mt-6 text-center text-sm text-slate-500">
-      Don't have an account?
-      <a
-        href="#"
-        class="font-semibold text-primary-600 hover:text-primary-700"
-        @click.prevent="notAvailable"
-      >
-        Sign Up
-      </a>
-    </p>
+          <span
+            v-if="loading"
+            class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+          />
+          <span v-else>Sign in</span>
+        </button>
+      </form>
+    </div>
   </AuthLayout>
 </template>

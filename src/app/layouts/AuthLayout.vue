@@ -1,54 +1,73 @@
 <script setup>
-import { CubeIcon } from '@heroicons/vue/24/solid'
+import {
+  Squares2X2Icon,
+  ViewColumnsIcon,
+  ChartBarSquareIcon,
+  ClockIcon,
+  ShieldCheckIcon,
+} from '@heroicons/vue/24/outline'
+
+const features = [
+  'Kelola project & milestone',
+  'Papan Kanban drag & drop',
+  'Dashboard & timeline real-time',
+  'Timesheet & approval bertingkat',
+  'Akses terkontrol per-unit',
+]
+
+const chips = [Squares2X2Icon, ViewColumnsIcon, ChartBarSquareIcon, ClockIcon, ShieldCheckIcon]
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden bg-brand">
-    <!-- Decorative glow blobs over the gradient field -->
-    <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-    <div class="pointer-events-none absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-accent-400/20 blur-3xl" />
-    <div class="pointer-events-none absolute bottom-0 left-10 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-
+  <div class="relative min-h-screen w-full overflow-hidden bg-slate-50">
+    <!-- Desktop: diagonal brand panel -->
     <div
-      class="relative mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center gap-8 px-5 py-6 lg:items-stretch lg:justify-between lg:gap-12 lg:px-10 lg:pb-0"
+      class="absolute inset-y-0 left-0 hidden bg-brand lg:block lg:w-[55%]"
+      style="clip-path: polygon(0 0, 100% 0, 76% 100%, 0 100%)"
     >
-      <!-- Promo copy (desktop only) -->
-      <div class="hidden max-w-md flex-1 flex-col justify-center text-white lg:flex">
-        <div class="flex items-center gap-2.5">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-            <CubeIcon class="h-6 w-6" />
-          </div>
-          <span class="text-2xl font-bold tracking-tight">MAZTA</span>
-        </div>
+      <!-- soft glow accents -->
+      <div class="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+      <div class="pointer-events-none absolute bottom-0 left-1/4 h-80 w-80 rounded-full bg-accent-400/20 blur-3xl" />
+    </div>
 
-        <h1 class="mt-12 text-5xl font-extrabold leading-tight">Hey, Hello!</h1>
-        <p class="mt-4 text-lg font-semibold text-white/90">
-          Selamat datang di MAZTA Project Management System.
-        </p>
-        <p class="mt-3 text-sm leading-relaxed text-white/70">
-          Rencanakan proyek, lacak task di papan Kanban, dan pantau progres tim — semua dalam satu
-          workspace yang cepat dan rapi.
-        </p>
-      </div>
+    <!-- Promo copy (over the diagonal panel) -->
+    <div
+      class="absolute inset-y-0 left-0 hidden w-[42%] flex-col justify-center px-12 text-white lg:flex xl:px-16"
+    >
+      <p class="text-xs font-semibold tracking-[0.35em] text-white/70">MAZTA PM</p>
+      <h1 class="mt-2 text-4xl font-extrabold leading-tight xl:text-5xl">
+        PROJECT<br />MANAGEMENT
+      </h1>
 
-      <!-- White card: phone-like, floating on mobile; on desktop its bottom is
-           flush to the screen edge while the top keeps a gap. -->
-      <div class="w-full max-w-md lg:flex lg:w-[420px] lg:shrink-0 lg:items-end">
+      <span
+        class="mt-7 inline-block self-start rounded-md bg-white/15 px-4 py-2 text-xs font-bold tracking-[0.3em] ring-1 ring-white/20"
+      >
+        KEY FEATURES
+      </span>
+
+      <ul class="mt-6 space-y-2.5 text-sm font-medium text-white/90">
+        <li v-for="f in features" :key="f" class="flex items-center gap-2">
+          <span class="text-white/60">—</span>{{ f }}
+        </li>
+      </ul>
+
+      <div class="mt-9 flex gap-3">
         <div
-          class="flex w-full flex-col justify-center rounded-[2.5rem] bg-white p-8 shadow-2xl sm:p-10 lg:min-h-[90vh] lg:rounded-b-none"
+          v-for="(icon, i) in chips"
+          :key="i"
+          class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-primary-600 shadow-md"
         >
-          <div class="mx-auto w-full max-w-sm">
-            <!-- Mobile brand mark (the promo panel is hidden below lg) -->
-            <div class="mb-8 flex items-center gap-3 lg:hidden">
-              <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white shadow-glow">
-                <CubeIcon class="h-6 w-6" />
-              </div>
-              <span class="text-lg font-bold tracking-tight text-slate-900">MAZTA PMS</span>
-            </div>
-
-            <slot />
-          </div>
+          <component :is="icon" class="h-5 w-5" />
         </div>
+      </div>
+    </div>
+
+    <!-- Form area (right) -->
+    <div
+      class="relative flex min-h-screen w-full items-center justify-center p-6 lg:ml-auto lg:w-[45%] lg:p-10"
+    >
+      <div class="w-full max-w-sm">
+        <slot />
       </div>
     </div>
   </div>

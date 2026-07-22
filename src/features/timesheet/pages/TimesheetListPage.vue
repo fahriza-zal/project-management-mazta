@@ -192,10 +192,11 @@ function approverLabel(row) {
 }
 /**
  * Show the approve button only in the Approval tab, if permitted and not yet
- * approved. A still-running timesheet can't be approved (nothing to sign off yet).
+ * approved. A timesheet can only be approved once it's finished (closed/selesai) —
+ * still-new/running/held sheets have nothing to sign off on yet.
  */
 function canApprove(row) {
-  return !isOwnTab.value && auth.can(PERM.APPROVE) && stateOf(row) !== 'running' && !isApproved(row)
+  return !isOwnTab.value && auth.can(PERM.APPROVE) && isClosed(row) && !isApproved(row)
 }
 
 /* -------------------------------------------------------------------------- */

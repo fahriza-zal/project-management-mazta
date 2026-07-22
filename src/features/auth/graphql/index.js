@@ -20,6 +20,7 @@ export const LOGIN = gql`
         }
         employee {
           id
+          image
           fullName
           units {
             id
@@ -75,6 +76,7 @@ export const CHANGE_PASSWORD = gql`
         }
         employee {
           id
+          image
           fullName
           units {
             id

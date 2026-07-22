@@ -43,7 +43,11 @@ function logout() {
     <BaseDropdown width="w-56" class="ml-auto">
       <template #trigger>
         <button class="flex items-center gap-2 rounded-xl p-1 pr-2 hover:bg-slate-100">
-          <BaseAvatar :name="auth.profile?.name || 'Guest'" size="sm" />
+          <BaseAvatar
+            :name="auth.profile?.name || 'Guest'"
+            :src="auth.profile?.image || ''"
+            size="sm"
+          />
           <span class="hidden text-sm font-medium text-slate-700 sm:block">{{
             auth.profile?.name || 'Guest'
           }}</span>

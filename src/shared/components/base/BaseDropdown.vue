@@ -37,7 +37,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
     >
       <div
         v-if="open"
-        class="absolute z-40 mt-2 origin-top rounded-2xl border border-white/60 bg-white/80 p-1.5 shadow-dropdown backdrop-blur-xl"
+        class="absolute z-40 mt-2 origin-top rounded-2xl border border-slate-200 bg-white p-1.5 shadow-dropdown"
         :class="[width, align === 'right' ? 'right-0' : 'left-0']"
         @click="close"
       >

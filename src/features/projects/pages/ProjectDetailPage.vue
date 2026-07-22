@@ -413,20 +413,26 @@ onMounted(async () => {
             <BaseBadge color="slate" size="sm">{{ humanize(project.projectMode) }}</BaseBadge>
           </div>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <BaseButton variant="outline" @click="goToBoard">
+        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <BaseButton class="flex-1 sm:flex-none" variant="outline" @click="goToBoard">
             <ViewColumnsIcon class="h-4 w-4" />
             Board
           </BaseButton>
           <BaseButton
             v-if="auth.can(PERM.UPDATE_STATUS)"
+            class="flex-1 sm:flex-none"
             variant="outline"
             @click="statusModalOpen = true"
           >
             <ArrowsRightLeftIcon class="h-4 w-4" />
             Ubah Status
           </BaseButton>
-          <BaseButton v-if="auth.can(PERM.EDIT)" variant="primary" @click="goToEdit">
+          <BaseButton
+            v-if="auth.can(PERM.EDIT)"
+            class="flex-1 sm:flex-none"
+            variant="primary"
+            @click="goToEdit"
+          >
             <PencilSquareIcon class="h-4 w-4" />
             Edit
           </BaseButton>
@@ -654,7 +660,7 @@ onMounted(async () => {
                         </div>
 
                         <!-- Stat tiles — kept lean: completion & schedule signals only -->
-                        <div class="mt-3 grid grid-cols-3 gap-3">
+                        <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                           <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                             <p class="text-caption flex items-center gap-1">
                               <CheckCircleIcon class="h-3.5 w-3.5 text-emerald-500" />
@@ -931,7 +937,7 @@ onMounted(async () => {
                   <li
                     v-for="t in allTasks"
                     :key="t.id"
-                    class="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/70 px-3 py-2.5 text-sm"
+                    class="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-slate-100 bg-white/70 px-3 py-2.5 text-sm"
                   >
                     <LockClosedIcon v-if="t.isLocked" class="h-4 w-4 shrink-0 text-amber-500" />
                     <ClipboardDocumentListIcon v-else class="h-4 w-4 shrink-0 text-slate-300" />
@@ -939,48 +945,50 @@ onMounted(async () => {
                       <p class="truncate font-medium text-slate-700">{{ t.title }}</p>
                       <p class="text-caption truncate">{{ t._milestoneName }}</p>
                     </div>
-                    <div v-if="t.assignments?.length" class="flex shrink-0 -space-x-1.5">
-                      <BaseAvatar
-                        v-for="a in t.assignments"
-                        :key="a.id"
-                        :name="a.employee?.fullName || '?'"
-                        size="xs"
-                      />
+                    <div class="flex flex-wrap items-center gap-2">
+                      <div v-if="t.assignments?.length" class="flex shrink-0 -space-x-1.5">
+                        <BaseAvatar
+                          v-for="a in t.assignments"
+                          :key="a.id"
+                          :name="a.employee?.fullName || '?'"
+                          size="xs"
+                        />
+                      </div>
+                      <BaseBadge
+                        v-if="t.currentStatus?.name"
+                        :color="taskStatusColor(t.currentStatus.name)"
+                        size="sm"
+                      >
+                        {{ humanize(t.currentStatus.name) }}
+                      </BaseBadge>
+                      <BaseBadge v-if="t.priority" :color="priorityColor(t.priority)" size="sm">
+                        {{ humanize(t.priority) }}
+                      </BaseBadge>
+                      <button
+                        v-if="canToggleTaskLock(t)"
+                        type="button"
+                        class="shrink-0 rounded-lg p-1 transition"
+                        :class="
+                          t.isLocked
+                            ? 'text-amber-500 hover:bg-amber-100'
+                            : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'
+                        "
+                        :title="t.isLocked ? 'Buka kunci task' : 'Kunci task'"
+                        @click="requestTaskLock(t)"
+                      >
+                        <LockOpenIcon v-if="t.isLocked" class="h-4 w-4" />
+                        <LockClosedIcon v-else class="h-4 w-4" />
+                      </button>
+                      <button
+                        v-if="auth.can(PERM.ASSIGN_TASK)"
+                        type="button"
+                        class="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
+                        title="Assign employees"
+                        @click="openAssign(t)"
+                      >
+                        <UserPlusIcon class="h-4 w-4" />
+                      </button>
                     </div>
-                    <BaseBadge
-                      v-if="t.currentStatus?.name"
-                      :color="taskStatusColor(t.currentStatus.name)"
-                      size="sm"
-                    >
-                      {{ humanize(t.currentStatus.name) }}
-                    </BaseBadge>
-                    <BaseBadge v-if="t.priority" :color="priorityColor(t.priority)" size="sm">
-                      {{ humanize(t.priority) }}
-                    </BaseBadge>
-                    <button
-                      v-if="canToggleTaskLock(t)"
-                      type="button"
-                      class="shrink-0 rounded-lg p-1 transition"
-                      :class="
-                        t.isLocked
-                          ? 'text-amber-500 hover:bg-amber-100'
-                          : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'
-                      "
-                      :title="t.isLocked ? 'Buka kunci task' : 'Kunci task'"
-                      @click="requestTaskLock(t)"
-                    >
-                      <LockOpenIcon v-if="t.isLocked" class="h-4 w-4" />
-                      <LockClosedIcon v-else class="h-4 w-4" />
-                    </button>
-                    <button
-                      v-if="auth.can(PERM.ASSIGN_TASK)"
-                      type="button"
-                      class="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-primary-600"
-                      title="Assign employees"
-                      @click="openAssign(t)"
-                    >
-                      <UserPlusIcon class="h-4 w-4" />
-                    </button>
                   </li>
                 </ul>
                 <BaseEmpty

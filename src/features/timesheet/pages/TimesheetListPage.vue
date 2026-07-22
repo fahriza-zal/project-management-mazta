@@ -600,96 +600,110 @@ onMounted(load)
         <div class="overflow-hidden rounded-2xl border border-primary-200/70 bg-primary-50/40">
           <ul class="divide-y divide-primary-100/70">
             <li v-for="row in activeItems" :key="row.id">
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
-                <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="dotClass(stateOf(row))" />
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <span class="truncate font-semibold text-slate-800">
-                      {{ row.task?.title || 'Untitled task' }}
-                    </span>
-                    <BaseBadge :color="stateMeta(row).color" size="sm" dot>
-                      {{ statusLabel(row) }}
-                    </BaseBadge>
-                    <BaseBadge v-if="!isOwnTab && row.employee" color="primary" size="sm">
-                      <UserIcon class="h-3 w-3" />
-                      {{ row.employee.fullName }}
-                    </BaseBadge>
+              <div
+                class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
+              >
+                <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
+                  <span
+                    class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0"
+                    :class="dotClass(stateOf(row))"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                      <span class="max-w-full truncate font-semibold text-slate-800">
+                        {{ row.task?.title || 'Untitled task' }}
+                      </span>
+                      <BaseBadge :color="stateMeta(row).color" size="sm" dot>
+                        {{ statusLabel(row) }}
+                      </BaseBadge>
+                      <BaseBadge v-if="!isOwnTab && row.employee" color="primary" size="sm">
+                        <UserIcon class="h-3 w-3" />
+                        {{ row.employee.fullName }}
+                      </BaseBadge>
+                    </div>
+                    <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
+                      <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
+                      {{ row.project?.name || 'Common task' }}
+                      <span v-if="row.startTime && stateOf(row) !== 'running'">
+                        · mulai {{ formatDateTime(row.startTime) }}</span
+                      >
+                    </p>
                   </div>
-                  <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
-                    <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
-                    {{ row.project?.name || 'Common task' }}
-                    <span v-if="row.startTime && stateOf(row) !== 'running'">
-                      · mulai {{ formatDateTime(row.startTime) }}</span
-                    >
-                  </p>
                 </div>
-                <!-- While running, the server duration stays 00:00:00, so show a
-                     live "berjalan" clock plus the start time instead of the number. -->
-                <span
-                  v-if="stateOf(row) === 'running'"
-                  class="flex items-center gap-1.5 text-sm font-semibold text-success"
+                <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
+                <div
+                  class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
                 >
-                  <ClockIcon class="h-5 w-5 animate-tick" />
-                  <span v-if="row.startTime"
-                    >Berjalan sejak {{ formatDateTime(row.startTime) }}</span
+                  <!-- While running, the server duration stays 00:00:00, so show a
+                       live "berjalan" clock plus the start time instead of the number. -->
+                  <span
+                    v-if="stateOf(row) === 'running'"
+                    class="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-success"
                   >
-                  <span v-else>Berjalan…</span>
-                </span>
-                <span v-else class="text-xl font-bold tabular-nums text-slate-800">
-                  {{ formatDuration(row.seconds) }}
-                </span>
-                <div class="flex items-center gap-2">
-                  <BaseButton
-                    v-if="canStart(row)"
-                    variant="primary"
-                    size="sm"
-                    @click="openAction(row, 'start')"
-                  >
-                    <PlayIcon class="h-4 w-4" /> Start
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canHold(row)"
-                    variant="outline"
-                    size="sm"
-                    @click="openAction(row, 'hold')"
-                  >
-                    <PauseIcon class="h-4 w-4" /> Hold
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canClose(row)"
-                    variant="outline"
-                    size="sm"
-                    @click="openAction(row, 'close')"
-                  >
-                    <StopIcon class="h-4 w-4" /> Close
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canApprove(row)"
-                    variant="primary"
-                    size="sm"
-                    @click="openApprove(row)"
-                  >
-                    <CheckCircleIcon class="h-4 w-4" /> Approve
-                  </BaseButton>
-                  <BaseBadge
-                    v-else-if="!isOwnTab && isApproved(row)"
-                    color="success"
-                    size="sm"
-                    dot
-                    :title="approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined"
-                  >
-                    Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
-                  </BaseBadge>
-                  <button
-                    class="rounded-lg p-2 text-slate-400 hover:bg-white/70 hover:text-slate-600"
-                    :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
-                    @click="toggleExpand(row.id)"
-                  >
-                    <ChevronDownIcon
-                      class="h-4 w-4 transition-transform"
-                      :class="expanded[row.id] ? 'rotate-180' : ''"
-                    />
-                  </button>
+                    <ClockIcon class="h-5 w-5 shrink-0 animate-tick" />
+                    <span v-if="row.startTime" class="truncate"
+                      >Berjalan sejak {{ formatDateTime(row.startTime) }}</span
+                    >
+                    <span v-else>Berjalan…</span>
+                  </span>
+                  <span v-else class="text-xl font-bold tabular-nums text-slate-800">
+                    {{ formatDuration(row.seconds) }}
+                  </span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <BaseButton
+                      v-if="canStart(row)"
+                      variant="primary"
+                      size="sm"
+                      @click="openAction(row, 'start')"
+                    >
+                      <PlayIcon class="h-4 w-4" /> Start
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canHold(row)"
+                      variant="outline"
+                      size="sm"
+                      @click="openAction(row, 'hold')"
+                    >
+                      <PauseIcon class="h-4 w-4" /> Hold
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canClose(row)"
+                      variant="outline"
+                      size="sm"
+                      @click="openAction(row, 'close')"
+                    >
+                      <StopIcon class="h-4 w-4" /> Close
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canApprove(row)"
+                      variant="primary"
+                      size="sm"
+                      @click="openApprove(row)"
+                    >
+                      <CheckCircleIcon class="h-4 w-4" /> Approve
+                    </BaseButton>
+                    <BaseBadge
+                      v-else-if="!isOwnTab && isApproved(row)"
+                      color="success"
+                      size="sm"
+                      dot
+                      :title="
+                        approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
+                      "
+                    >
+                      Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                    </BaseBadge>
+                    <button
+                      class="rounded-lg p-2 text-slate-400 hover:bg-white/70 hover:text-slate-600"
+                      :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
+                      @click="toggleExpand(row.id)"
+                    >
+                      <ChevronDownIcon
+                        class="h-4 w-4 transition-transform"
+                        :class="expanded[row.id] ? 'rotate-180' : ''"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -744,100 +758,113 @@ onMounted(load)
               :key="row.id"
               :class="isClosed(row) ? 'border-l-2 border-emerald-400 bg-emerald-50/40' : ''"
             >
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
-                <CheckCircleIcon
-                  v-if="isClosed(row)"
-                  class="h-5 w-5 shrink-0 text-emerald-500"
-                />
-                <span
-                  v-else
-                  class="h-2 w-2 shrink-0 rounded-full"
-                  :class="dotClass(stateOf(row))"
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="truncate font-medium"
-                      :class="isClosed(row) ? 'text-slate-500' : 'text-slate-800'"
-                    >
-                      {{ row.task?.title || 'Untitled task' }}
-                    </span>
-                    <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
-                      {{ typeLabel(row) }}
-                    </BaseBadge>
-                    <BaseBadge v-if="isClosed(row)" color="success" size="sm" dot>Selesai</BaseBadge>
-                    <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
-                      <UserIcon class="h-3 w-3" />
-                      {{ row.employee.fullName }}
-                    </BaseBadge>
+              <div
+                class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2"
+              >
+                <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
+                  <CheckCircleIcon
+                    v-if="isClosed(row)"
+                    class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500 sm:mt-0"
+                  />
+                  <span
+                    v-else
+                    class="mt-1.5 h-2 w-2 shrink-0 rounded-full sm:mt-0"
+                    :class="dotClass(stateOf(row))"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                      <span
+                        class="max-w-full truncate font-medium"
+                        :class="isClosed(row) ? 'text-slate-500' : 'text-slate-800'"
+                      >
+                        {{ row.task?.title || 'Untitled task' }}
+                      </span>
+                      <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
+                        {{ typeLabel(row) }}
+                      </BaseBadge>
+                      <BaseBadge v-if="isClosed(row)" color="success" size="sm" dot
+                        >Selesai</BaseBadge
+                      >
+                      <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
+                        <UserIcon class="h-3 w-3" />
+                        {{ row.employee.fullName }}
+                      </BaseBadge>
+                    </div>
+                    <p class="mt-0.5 truncate text-xs text-slate-400">
+                      <span v-if="row.project">{{ row.project.name }} · </span>
+                      <span v-if="!isClosed(row)">{{ statusLabel(row) }}</span>
+                      <span v-if="row.startTime">
+                        <span v-if="!isClosed(row)">· </span>{{ formatDateTime(row.startTime) }}
+                        <span v-if="row.endTime">– {{ formatDateTime(row.endTime) }}</span>
+                      </span>
+                    </p>
                   </div>
-                  <p class="mt-0.5 truncate text-xs text-slate-400">
-                    <span v-if="row.project">{{ row.project.name }} · </span>
-                    <span v-if="!isClosed(row)">{{ statusLabel(row) }}</span>
-                    <span v-if="row.startTime">
-                      <span v-if="!isClosed(row)">· </span>{{ formatDateTime(row.startTime) }}
-                      <span v-if="row.endTime">– {{ formatDateTime(row.endTime) }}</span>
-                    </span>
-                  </p>
                 </div>
-                <span
-                  class="text-sm font-semibold tabular-nums"
-                  :class="isClosed(row) ? 'text-emerald-600' : 'text-slate-700'"
+                <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
+                <div
+                  class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
                 >
-                  {{ formatDuration(row.seconds) }}
-                </span>
-                <div class="flex items-center gap-1">
-                  <BaseButton
-                    v-if="canStart(row)"
-                    variant="primary"
-                    size="sm"
-                    @click="openAction(row, 'start')"
+                  <span
+                    class="text-sm font-semibold tabular-nums"
+                    :class="isClosed(row) ? 'text-emerald-600' : 'text-slate-700'"
                   >
-                    <PlayIcon class="h-4 w-4" /> Start
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canHold(row)"
-                    variant="outline"
-                    size="sm"
-                    @click="openAction(row, 'hold')"
-                  >
-                    <PauseIcon class="h-4 w-4" /> Hold
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canClose(row)"
-                    variant="outline"
-                    size="sm"
-                    @click="openAction(row, 'close')"
-                  >
-                    <StopIcon class="h-4 w-4" /> Close
-                  </BaseButton>
-                  <BaseButton
-                    v-if="canApprove(row)"
-                    variant="primary"
-                    size="sm"
-                    @click="openApprove(row)"
-                  >
-                    <CheckCircleIcon class="h-4 w-4" /> Approve
-                  </BaseButton>
-                  <BaseBadge
-                    v-else-if="!isOwnTab && isApproved(row)"
-                    color="success"
-                    size="sm"
-                    dot
-                    :title="approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined"
-                  >
-                    Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
-                  </BaseBadge>
-                  <button
-                    class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
-                    @click="toggleExpand(row.id)"
-                  >
-                    <ChevronDownIcon
-                      class="h-4 w-4 transition-transform"
-                      :class="expanded[row.id] ? 'rotate-180' : ''"
-                    />
-                  </button>
+                    {{ formatDuration(row.seconds) }}
+                  </span>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <BaseButton
+                      v-if="canStart(row)"
+                      variant="primary"
+                      size="sm"
+                      @click="openAction(row, 'start')"
+                    >
+                      <PlayIcon class="h-4 w-4" /> Start
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canHold(row)"
+                      variant="outline"
+                      size="sm"
+                      @click="openAction(row, 'hold')"
+                    >
+                      <PauseIcon class="h-4 w-4" /> Hold
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canClose(row)"
+                      variant="outline"
+                      size="sm"
+                      @click="openAction(row, 'close')"
+                    >
+                      <StopIcon class="h-4 w-4" /> Close
+                    </BaseButton>
+                    <BaseButton
+                      v-if="canApprove(row)"
+                      variant="primary"
+                      size="sm"
+                      @click="openApprove(row)"
+                    >
+                      <CheckCircleIcon class="h-4 w-4" /> Approve
+                    </BaseButton>
+                    <BaseBadge
+                      v-else-if="!isOwnTab && isApproved(row)"
+                      color="success"
+                      size="sm"
+                      dot
+                      :title="
+                        approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
+                      "
+                    >
+                      Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                    </BaseBadge>
+                    <button
+                      class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
+                      @click="toggleExpand(row.id)"
+                    >
+                      <ChevronDownIcon
+                        class="h-4 w-4 transition-transform"
+                        :class="expanded[row.id] ? 'rotate-180' : ''"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -67,17 +67,17 @@ function itemActive(item, href, isActive, isExactActive) {
       <div
         v-for="(group, gi) in navGroups"
         :key="gi"
-        class="space-y-1"
+        class="space-y-1 px-2"
         :class="gi > 0 ? 'mt-6' : ''"
       >
         <!-- Group header (hidden when collapsed; falls back to a divider) -->
         <p
           v-if="group.title && (mobile || !sidebarCollapsed)"
-          class="px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400"
+          class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400"
         >
           {{ group.title }}
         </p>
-        <div v-else-if="group.title" class="mx-5 mb-1 border-t border-slate-100" />
+        <div v-else-if="group.title" class="mx-3 mb-1 border-t border-slate-100" />
 
         <BaseTooltip
           v-for="item in group.items"
@@ -96,8 +96,8 @@ function itemActive(item, href, isActive, isExactActive) {
               class="group flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors"
               :class="[
                 itemActive(item, href, isActive, isExactActive)
-                  ? 'mx-2 rounded-xl bg-brand text-white shadow-glow'
-                  : 'mx-2 rounded-xl text-slate-600 hover:bg-white/70 hover:text-slate-900',
+                  ? 'rounded-xl bg-brand text-white shadow-glow'
+                  : 'rounded-xl text-slate-600 hover:bg-white/70 hover:text-slate-900',
                 !mobile && sidebarCollapsed ? 'justify-center' : '',
               ]"
               @click="

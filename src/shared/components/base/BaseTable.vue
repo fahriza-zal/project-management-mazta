@@ -14,13 +14,34 @@ defineProps({
   fixed: { type: Boolean, default: false },
   // Width of the trailing actions column (only meaningful with `fixed`).
   actionsWidth: { type: String, default: null },
+  // Minimum table width (e.g. "900px"). When set, the table keeps this width and
+  // the wrapper scrolls horizontally on narrow screens instead of crushing the
+  // columns — the mobile-friendly escape hatch for wide `fixed` tables.
+  minWidth: { type: String, default: null },
+  // Like `minWidth`, but only applies below the `sm` breakpoint (< 640px). On
+  // desktop the `table-fixed` layout fills the container with no horizontal
+  // scroll; on mobile the min-width kicks in so wide tables scroll instead of
+  // crushing their columns. Pair with `fixed`.
+  mobileMinWidth: { type: String, default: null },
 })
 defineEmits(['row-click'])
 </script>
 
 <template>
-  <div :class="fixed ? '' : 'overflow-x-auto'">
-    <table class="w-full border-collapse text-left text-sm" :class="fixed ? 'table-fixed' : ''">
+  <div
+    :class="
+      mobileMinWidth
+        ? 'overflow-x-auto sm:overflow-x-visible'
+        : fixed && !minWidth
+          ? ''
+          : 'overflow-x-auto'
+    "
+  >
+    <table
+      class="w-full border-collapse text-left text-sm"
+      :class="[fixed ? 'table-fixed' : '', mobileMinWidth ? 'mobile-min-w' : '']"
+      :style="[minWidth ? { minWidth } : null, mobileMinWidth ? { '--mobile-min-w': mobileMinWidth } : null]"
+    >
       <thead>
         <tr class="border-b border-slate-200">
           <th
@@ -75,3 +96,13 @@ defineEmits(['row-click'])
     </div>
   </div>
 </template>
+
+<style scoped>
+/* `mobileMinWidth`: keep a minimum width (→ horizontal scroll) only on mobile;
+   at the `sm` breakpoint (640px) the table goes back to filling its container. */
+@media (max-width: 639px) {
+  .mobile-min-w {
+    min-width: var(--mobile-min-w);
+  }
+}
+</style>

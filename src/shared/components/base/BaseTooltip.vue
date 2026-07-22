@@ -1,26 +1,78 @@
 <script setup>
-defineProps({
+import { ref } from 'vue'
+
+const props = defineProps({
   text: { type: String, default: '' },
   position: { type: String, default: 'top' }, // top | bottom | left | right
 })
 
-const pos = {
-  top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-  bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-  left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-  right: 'left-full top-1/2 -translate-y-1/2 ml-2',
+// The tooltip is teleported to <body> and positioned with `fixed` coords derived
+// from the trigger's bounding rect. This keeps it out of any scroll container's
+// overflow box (e.g. the collapsed sidebar's <nav>), so it never adds a stray
+// horizontal scrollbar the way an absolutely-positioned child would.
+const trigger = ref(null)
+const show = ref(false)
+const style = ref({})
+
+const GAP = 8
+
+function updatePosition() {
+  const el = trigger.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  let top, left, transform
+  switch (props.position) {
+    case 'right':
+      top = r.top + r.height / 2
+      left = r.right + GAP
+      transform = 'translateY(-50%)'
+      break
+    case 'left':
+      top = r.top + r.height / 2
+      left = r.left - GAP
+      transform = 'translate(-100%, -50%)'
+      break
+    case 'bottom':
+      top = r.bottom + GAP
+      left = r.left + r.width / 2
+      transform = 'translateX(-50%)'
+      break
+    default: // top
+      top = r.top - GAP
+      left = r.left + r.width / 2
+      transform = 'translate(-50%, -100%)'
+  }
+  style.value = { top: `${top}px`, left: `${left}px`, transform }
+}
+
+function open() {
+  if (!props.text) return
+  updatePosition()
+  show.value = true
+}
+function close() {
+  show.value = false
 }
 </script>
 
 <template>
-  <span class="group relative inline-flex">
+  <span
+    ref="trigger"
+    class="inline-flex"
+    @mouseenter="open"
+    @mouseleave="close"
+    @focusin="open"
+    @focusout="close"
+  >
     <slot />
-    <span
-      v-if="text"
-      class="pointer-events-none absolute z-50 whitespace-nowrap rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100"
-      :class="pos[position]"
-    >
-      {{ text }}
-    </span>
+    <Teleport to="body">
+      <span
+        v-if="text && show"
+        class="pointer-events-none fixed z-[60] whitespace-nowrap rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg"
+        :style="style"
+      >
+        {{ text }}
+      </span>
+    </Teleport>
   </span>
 </template>

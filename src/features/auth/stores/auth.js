@@ -42,6 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
       id: user.value.id,
       username: user.value.username,
       name: employee.value?.fullName || user.value.username,
+      image: employee.value?.image || '',
       role:
         employee.value?.level?.name ||
         (user.value.isSuperuser ? 'Super Admin' : user.value.isStaff ? 'Staff' : 'Member'),

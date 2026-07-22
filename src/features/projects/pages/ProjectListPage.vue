@@ -45,7 +45,9 @@ const myUnitIds = computed(() =>
 )
 
 const search = ref('')
-const view = ref('table') // table | card
+// Default ke card di layar mobile (< breakpoint `sm` Tailwind = 640px), table di desktop.
+const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+const view = ref(isMobile ? 'card' : 'table') // table | card
 const page = ref(1)
 let searchTimer = null
 
@@ -324,6 +326,7 @@ onMounted(() => {
         :columns="columns"
         :rows="items"
         fixed
+        mobile-min-width="1080px"
         actions-width="124px"
         @row-click="openDetail($event.id)"
       >

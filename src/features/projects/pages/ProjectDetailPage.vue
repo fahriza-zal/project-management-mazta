@@ -242,9 +242,28 @@ const tabs = [
 ]
 const activeTab = ref('milestones')
 
-// Expand/collapse milestone accordions (all open by default).
-const collapsed = ref({})
-const toggleMilestone = (id) => (collapsed.value[id] = !collapsed.value[id])
+// Expand/collapse milestone accordions (all closed by default).
+const expandedMilestone = ref({})
+const toggleMilestone = (id) => (expandedMilestone.value[id] = !expandedMilestone.value[id])
+const isMilestoneOpen = (id) => !!expandedMilestone.value[id]
+
+// Unique assignees across a milestone's tasks — surfaced in the header so you
+// can tell from the outside (even while collapsed) who's already assigned.
+const milestoneAssignees = (m) => {
+  const seen = new Set()
+  const out = []
+  for (const t of m?.tasks ?? []) {
+    for (const a of t?.assignments ?? []) {
+      const emp = a?.employee
+      const key = emp?.id ?? emp?.fullName
+      if (emp && key != null && !seen.has(key)) {
+        seen.add(key)
+        out.push(emp)
+      }
+    }
+  }
+  return out
+}
 
 // Expand/collapse a task's activity history (collapsed by default).
 const activityOpen = ref({})
@@ -582,6 +601,29 @@ onMounted(async () => {
                         <p class="text-caption">{{ m.tasks?.length || 0 }} tasks</p>
                       </div>
 
+                      <!-- Assignees preview — visible even when collapsed -->
+                      <div
+                        v-if="milestoneAssignees(m).length"
+                        class="hidden shrink-0 items-center gap-1.5 sm:flex"
+                        :title="
+                          milestoneAssignees(m)
+                            .map((e) => e.fullName)
+                            .join(', ')
+                        "
+                      >
+                        <div class="flex -space-x-1.5">
+                          <BaseAvatar
+                            v-for="e in milestoneAssignees(m).slice(0, 4)"
+                            :key="e.id || e.fullName"
+                            :name="e.fullName || '?'"
+                            size="xs"
+                          />
+                        </div>
+                        <span v-if="milestoneAssignees(m).length > 4" class="text-caption">
+                          +{{ milestoneAssignees(m).length - 4 }}
+                        </span>
+                      </div>
+
                       <div class="hidden w-40 flex-col gap-1 sm:flex">
                         <div class="flex items-center gap-2">
                           <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
@@ -602,14 +644,14 @@ onMounted(async () => {
                         </span>
                       </div>
                       <ChevronUpIcon
-                        v-if="!collapsed[m.id]"
+                        v-if="isMilestoneOpen(m.id)"
                         class="h-4 w-4 shrink-0 text-slate-400"
                       />
                       <ChevronDownIcon v-else class="h-4 w-4 shrink-0 text-slate-400" />
                     </button>
 
                     <!-- Tasks -->
-                    <div v-if="!collapsed[m.id]" class="space-y-2.5 px-4 pb-4">
+                    <div v-if="isMilestoneOpen(m.id)" class="space-y-2.5 px-4 pb-4">
                       <p v-if="m.description" class="text-xs text-slate-500">{{ m.description }}</p>
 
                       <!-- Milestone metrics -->
@@ -845,7 +887,7 @@ onMounted(async () => {
                               class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
                             >
                               <CalendarDaysIcon class="h-3.5 w-3.5" />
-                              <span class="font-medium">Last</span>
+                              <span class="font-medium">Last Update</span>
                               <span class="font-bold">{{
                                 formatDate(t.metric.lastStatusChangeAt)
                               }}</span>

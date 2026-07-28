@@ -8,6 +8,7 @@ import PersonalDashboard from '@/features/dashboard/components/PersonalDashboard
 import OverviewDashboard from '@/features/dashboard/components/OverviewDashboard.vue'
 import HistoryDashboard from '@/features/dashboard/components/HistoryDashboard.vue'
 import ProjectGanttChart from '@/features/dashboard/components/ProjectGanttChart.vue'
+import UnitProjectSummary from '@/features/dashboard/components/UnitProjectSummary.vue'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 
@@ -18,10 +19,34 @@ auth.hydrate()
 // independent of the dashboard tabs. `unitIds` (the signed-in user's units)
 // scopes which projects appear, so each user sees their own units' projects.
 const canGantt = computed(() => auth.can(PERM.RANGE_PROJECT))
-const unitIds = computed(() => (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean))
-const { ranges: projectRanges, loading: ganttLoading, reload: reloadGantt } = useRangeProjects(unitIds)
+// Users permitted for the org-wide Overview (`generalDashboard`) see the timeline
+// unscoped: send `unitIds: null` (empty array → null in the composable) so every
+// project is shown. Everyone else stays scoped to their own units.
+const unitIds = computed(() =>
+  auth.can(PERM.OVERVIEW)
+    ? []
+    : (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean),
+)
+const {
+  ranges: projectRanges,
+  loading: ganttLoading,
+  reload: reloadGantt,
+} = useRangeProjects(unitIds)
 onMounted(() => {
   if (canGantt.value) reloadGantt()
+})
+
+// The timeline is revealed per-unit: pick a unit in the summary → the Gantt shows
+// only that unit's projects. `null` = nothing picked yet (timeline hidden).
+const selectedUnitId = ref(null)
+
+// Projects that involve the selected unit (many-to-many via `projectUnits`).
+const unitRanges = computed(() => {
+  if (selectedUnitId.value == null) return []
+  const id = String(selectedUnitId.value)
+  return (projectRanges.value ?? []).filter((r) =>
+    (r?.project?.projectUnits ?? []).some((pu) => String(pu?.unit?.id) === id),
+  )
 })
 
 // Only the tabs the user is permitted to open are shown; each `perm` is the
@@ -108,7 +133,25 @@ const activeSubtitle = computed(() => tabs.value.find((t) => t.key === tab.value
 
     <!-- Project timeline — at the top so every permitted user sees their unit's
          project timeline right after login, regardless of tab. -->
-    <ProjectGanttChart v-if="canGantt" :ranges="projectRanges" :loading="ganttLoading" />
+    <!-- Ringkasan jumlah project per unit — klik unit untuk membuka timeline-nya
+         (accordion) langsung di bawah barisnya. -->
+    <UnitProjectSummary
+      v-if="canGantt"
+      :ranges="projectRanges"
+      :loading="ganttLoading"
+      :selected-id="selectedUnitId"
+      @select="selectedUnitId = $event"
+    >
+      <template #detail>
+        <ProjectGanttChart
+          :key="selectedUnitId"
+          :ranges="unitRanges"
+          :loading="ganttLoading"
+          style="margin-top: 40px;"
+          bare
+        />
+      </template>
+    </UnitProjectSummary>
 
     <!-- Active view -->
     <PersonalDashboard v-if="tab === 'personal'" />

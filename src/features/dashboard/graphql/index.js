@@ -44,6 +44,13 @@ export const GET_RANGE_PROJECT = gql`
             doneAt
           }
         }
+        projectUnits {
+          id
+          unit {
+            id
+            name
+          }
+        }
       }
     }
   }

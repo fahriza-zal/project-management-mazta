@@ -29,7 +29,9 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0
 }
 const round = (v) => Math.round(num(v))
-const clampPct = (v) => Math.max(0, Math.min(100, num(v)))
+// Clamp to 0–100 and round to one decimal (the API sends long decimals like
+// "7.0175368421052635"); used for both the meter label and its bar width.
+const clampPct = (v) => Math.round(Math.max(0, Math.min(100, num(v))) * 10) / 10
 
 // ── KPI tiles ────────────────────────────────────────────────────────────────
 const stats = computed(() => [

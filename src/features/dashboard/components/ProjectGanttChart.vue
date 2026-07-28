@@ -32,13 +32,28 @@ import { CheckIcon } from '@heroicons/vue/24/solid'
 const props = defineProps({
   ranges: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  // Optional heading override — lets a caller label the timeline with context
+  // (e.g. the selected unit) without changing the default standalone wording.
+  title: { type: String, default: 'Timeline Project' },
+  subtitle: {
+    type: String,
+    default:
+      'Awal, perkiraan selesai & penyelesaian project — beserta tiap task, siapa yang mengerjakan dan kapan.',
+  },
+  // Start expanded (used when the timeline is revealed on demand, e.g. after
+  // picking a unit) instead of the default collapsed-on-load state.
+  initialOpen: { type: Boolean, default: false },
+  // Render without its own card chrome/collapse header — for embedding inside an
+  // existing accordion (the caller supplies the surrounding card + toggle).
+  bare: { type: Boolean, default: false },
 })
 
 const DAY = 86400000
 
 // Whole-card collapse — the timeline starts closed on page load; the header
 // arrow opens it. (Per-project task rows have their own toggle below.)
-const open = ref(false)
+// In `bare` mode there is no toggle, so it's always open.
+const open = ref(props.initialOpen || props.bare)
 
 /** Parse a 'yyyy-MM-dd[…]' string to a local-midnight timestamp (or null). */
 function parseDay(v) {
@@ -273,9 +288,14 @@ const legend = [
 </script>
 
 <template>
-  <section class="surface p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3" :class="open ? 'mb-4' : ''">
+  <section :class="bare ? '' : 'surface p-5'">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3"
+      :class="open ? 'mb-4' : ''"
+      v-if="!bare || open"
+    >
       <button
+        v-if="!bare"
         type="button"
         class="flex min-w-0 items-start gap-2 text-left"
         :aria-expanded="open"
@@ -286,11 +306,8 @@ const legend = [
           :class="open ? 'rotate-90' : ''"
         />
         <div class="min-w-0">
-          <h2 class="text-subheading">Timeline Project</h2>
-          <p class="text-caption mt-0.5">
-            Awal, perkiraan selesai & penyelesaian project — beserta tiap task, siapa yang
-            mengerjakan dan kapan.
-          </p>
+          <h2 class="text-subheading">{{ title }}</h2>
+          <p class="text-caption mt-0.5">{{ subtitle }}</p>
         </div>
       </button>
       <div v-if="open" class="flex flex-wrap items-center gap-x-4 gap-y-1.5">

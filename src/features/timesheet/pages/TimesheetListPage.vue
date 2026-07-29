@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTimesheetStore } from '@/features/timesheet/stores/timesheet'
 import { useAuthStore } from '@/features/auth/stores/auth'
@@ -156,6 +156,36 @@ function dotClass(state) {
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Live clock — a `now` that ticks every second so a running timer counts up   */
+/* in real time. Elapsed is always derived from `startTime`, not a JS counter, */
+/* so it stays correct even after the tab was closed and reopened (we simply   */
+/* recompute `now - startTime`). The interval only drives re-render.           */
+/* -------------------------------------------------------------------------- */
+const now = ref(Date.now())
+let clockTimer = null
+onMounted(() => {
+  clockTimer = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+onUnmounted(() => {
+  if (clockTimer) clearInterval(clockTimer)
+})
+
+/**
+ * Total seconds to display for a row. A running row counts up live from its
+ * `startTime` (plus any seconds already banked from earlier segments); any
+ * other state just reports the stored `seconds`.
+ */
+function liveSeconds(row) {
+  const banked = Number(row.seconds) || 0
+  if (stateOf(row) !== 'running' || !row.startTime) return banked
+  const start = new Date(row.startTime).getTime()
+  if (Number.isNaN(start)) return banked
+  return banked + Math.max(0, Math.floor((now.value - start) / 1000))
+}
+
 // Lifecycle actions apply to the user's own timesheets only (the Approval tab is
 // read-only). Running can be held or closed; other non-new states (hold, closed)
 // can be (re)started or closed; a brand-new sheet can only be started.
@@ -258,7 +288,7 @@ const restGroups = computed(() => {
   }))
 })
 
-const totalSeconds = computed(() => items.value.reduce((s, r) => s + (Number(r.seconds) || 0), 0))
+const totalSeconds = computed(() => items.value.reduce((s, r) => s + liveSeconds(r), 0))
 const summary = computed(() => {
   const acc = { running: 0, hold: 0, closed: 0 }
   for (const row of items.value) {
@@ -625,9 +655,13 @@ onMounted(load)
                     <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
                       <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
                       {{ row.project?.name || 'Common task' }}
-                      <span v-if="row.startTime && stateOf(row) !== 'running'">
-                        · mulai {{ formatDateTime(row.startTime) }}</span
-                      >
+                    </p>
+                    <p
+                      v-if="row.startTime || row.endTime"
+                      class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
+                    >
+                      <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
+                      <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
                     </p>
                   </div>
                 </div>
@@ -635,17 +669,19 @@ onMounted(load)
                 <div
                   class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
                 >
-                  <!-- While running, the server duration stays 00:00:00, so show a
-                       live "berjalan" clock plus the start time instead of the number. -->
+                  <!-- While running, count up live from startTime (recomputed on
+                       every tick, so it stays correct even after closing the tab). -->
                   <span
                     v-if="stateOf(row) === 'running'"
-                    class="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-success"
+                    class="flex min-w-0 flex-col items-end leading-tight text-success"
                   >
-                    <ClockIcon class="h-5 w-5 shrink-0 animate-tick" />
-                    <span v-if="row.startTime" class="truncate"
-                      >Berjalan sejak {{ formatDateTime(row.startTime) }}</span
-                    >
-                    <span v-else>Berjalan…</span>
+                    <span class="flex items-center gap-1.5 text-xl font-bold tabular-nums">
+                      <ClockIcon class="h-5 w-5 shrink-0 animate-tick" />
+                      {{ formatDuration(liveSeconds(row)) }}
+                    </span>
+                    <span v-if="row.startTime" class="truncate text-[11px] font-medium opacity-80">
+                      Berjalan sejak {{ formatDateTime(row.startTime) }}
+                    </span>
                   </span>
                   <span v-else class="text-xl font-bold tabular-nums text-slate-800">
                     {{ formatDuration(row.seconds) }}
@@ -722,18 +758,21 @@ onMounted(load)
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                        <span v-if="a.description" class="text-slate-400">
-                          — {{ a.description }}</span
+                        <span
+                          v-if="a.totalTime != null && Number(a.totalTime) !== 0"
+                          class="font-bold tabular-nums text-slate-600"
                         >
-                      </div>
-                      <div
-                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
-                      >
-                        <span v-if="a.totalTime != null" class="tabular-nums">
                           <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
                             formatDuration(a.totalTime)
                           }}
                         </span>
+                      </div>
+                      <div
+                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
+                      >
+                        <span v-if="a.description" class="font-bold text-slate-500">{{
+                          a.description
+                        }}</span>
                         <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
                       </div>
                     </div>
@@ -792,12 +831,17 @@ onMounted(load)
                       </BaseBadge>
                     </div>
                     <p class="mt-0.5 truncate text-xs text-slate-400">
-                      <span v-if="row.project">{{ row.project.name }} · </span>
-                      <span v-if="!isClosed(row)">{{ statusLabel(row) }}</span>
-                      <span v-if="row.startTime">
-                        <span v-if="!isClosed(row)">· </span>{{ formatDateTime(row.startTime) }}
-                        <span v-if="row.endTime">– {{ formatDateTime(row.endTime) }}</span>
-                      </span>
+                      <span v-if="row.project">{{ row.project.name }}</span>
+                      <span v-if="!isClosed(row)"
+                        ><span v-if="row.project"> · </span>{{ statusLabel(row) }}</span
+                      >
+                    </p>
+                    <p
+                      v-if="row.startTime || row.endTime"
+                      class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
+                    >
+                      <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
+                      <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
                     </p>
                   </div>
                 </div>
@@ -883,18 +927,21 @@ onMounted(load)
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                        <span v-if="a.description" class="text-slate-400">
-                          — {{ a.description }}</span
+                        <span
+                          v-if="a.totalTime != null && Number(a.totalTime) !== 0"
+                          class="font-bold tabular-nums text-slate-600"
                         >
-                      </div>
-                      <div
-                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
-                      >
-                        <span v-if="a.totalTime != null" class="tabular-nums">
                           <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
                             formatDuration(a.totalTime)
                           }}
                         </span>
+                      </div>
+                      <div
+                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
+                      >
+                        <span v-if="a.description" class="font-bold text-slate-500">{{
+                          a.description
+                        }}</span>
                         <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
                       </div>
                     </div>

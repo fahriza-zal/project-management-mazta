@@ -69,11 +69,25 @@ export const GENERAL_DASHBOARD_SUBSCRIPTION = gql`
       activeProjectList {
         id
         name
+        projectUnits {
+          id
+          unit {
+            id
+            name
+          }
+        }
       }
       activeProjects
       closedProjectList {
         id
         name
+        projectUnits {
+          id
+          unit {
+            id
+            name
+          }
+        }
       }
       closedProjects
       completedLate
@@ -92,11 +106,25 @@ export const GENERAL_DASHBOARD_SUBSCRIPTION = gql`
       nearDeadlineProjectList {
         id
         name
+        projectUnits {
+          id
+          unit {
+            id
+            name
+          }
+        }
       }
       onTimeProjects
       overdueProjectList {
         id
         name
+        projectUnits {
+          id
+          unit {
+            id
+            name
+          }
+        }
       }
       overdueTasks
       progressProject
@@ -111,39 +139,39 @@ export const GENERAL_DASHBOARD_SUBSCRIPTION = gql`
 /** Time-series history of dashboard metrics. Response: data.historyDashboard.histories[]. */
 export const HISTORY_DASHBOARD_SUBSCRIPTION = gql`
   subscription HistoryDashboard {
-    historyDashboard {
-      histories {
-        activeMembers
-        actualSeconds
-        averageCycleTime
-        averageLeadTime
-        averageTaskPerMember
-        completedLate
-        completedMilestones
-        completedOnTime
-        completedTasks
-        completionRate
-        efficiency
-        estimatedSeconds
-        healthScore
-        id
-        overdueTasks
-        progress
-        projectAgeDays
-        riskScore
-        scheduleVariance
-        throughput
-        totalAttachments
-        totalComments
-        totalMilestones
-        totalStatusChanges
-        totalTasks
-        utilization
-        velocity
-        workDate
-      }
+  historyDashboard {
+    histories {
+      totalMilestones
+      completedMilestones
+      totalTasks
+      completedTasks
+      estimatedSeconds
+      actualSeconds
+      progress
+      overdueTasks
+      completedOnTime
+      completedLate
+      averageCycleTime
+      averageLeadTime
+      totalComments
+      totalAttachments
+      totalStatusChanges
+      velocity
+      throughput
+      completionRate
+      activeMembers
+      averageTaskPerMember
+      utilization
+      scheduleVariance
+      efficiency
+      riskScore
+      healthScore
+      projectAgeDays
+      id
+      workDate
     }
   }
+}
 `
 
 /**

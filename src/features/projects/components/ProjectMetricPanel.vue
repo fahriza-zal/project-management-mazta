@@ -21,6 +21,9 @@ const props = defineProps({
   // May be null when the backend hasn't computed a metric for the project yet —
   // the panel then shows an empty state instead of vanishing.
   metric: { type: Object, default: null },
+  // Total task count for the "Completed Tasks" denominator — the project metric
+  // block has `completedTasks` but no total, so the parent passes it in.
+  totalTasks: { type: Number, default: null },
   defaultOpen: { type: Boolean, default: true },
 })
 
@@ -52,13 +55,19 @@ function scoreTint(value, invert = false) {
 }
 
 const progress = computed(() => round(m.value.progress))
+// completionRate arrives as a 0–1 fraction ("0.6667"), unlike `progress` which
+// is already a percent — so it needs ×100, not a bare round.
+const completionRate = computed(() => round(Number(m.value.completionRate || 0) * 100))
 
 // Secondary stat tiles — kept lean: the few signals that actually drive decisions.
 const tiles = computed(() => [
   {
     key: 'completed',
     label: 'Completed Tasks',
-    value: `${m.value.completedTasks ?? 0} / ${m.value.totalTasks ?? 0}`,
+    value:
+      props.totalTasks != null
+        ? `${m.value.completedTasks ?? 0} / ${props.totalTasks}`
+        : (m.value.completedTasks ?? 0),
     icon: CheckCircleIcon,
     tone: 'text-emerald-500',
   },
@@ -100,7 +109,7 @@ const tiles = computed(() => [
         <ChartBarIcon class="h-5 w-5" />
         Project Metrics
       </p>
-      
+
       <div class="flex items-center gap-3">
         <span v-if="m.calculatedAt" class="hidden text-xs font-medium text-white/80 sm:inline">
           Updated {{ formatDate(m.calculatedAt, { hour: '2-digit', minute: '2-digit' }) }}
@@ -172,12 +181,12 @@ const tiles = computed(() => [
               Completion Rate
             </p>
             <p class="mt-1 text-3xl font-extrabold leading-none text-slate-800">
-              {{ round(m.completionRate) }}<span class="text-lg font-bold text-slate-400">%</span>
+              {{ completionRate }}<span class="text-lg font-bold text-slate-400">%</span>
             </p>
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
               <div
                 class="h-full rounded-full bg-emerald-500 transition-all"
-                :style="{ width: round(m.completionRate) + '%' }"
+                :style="{ width: completionRate + '%' }"
               />
             </div>
           </div>

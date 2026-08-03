@@ -62,3 +62,43 @@ export function formatDuration(seconds) {
   if (m) return `${m}m ${sec}s`
   return `${sec}s`
 }
+
+/** Seconds → compact hours/minutes, e.g. "8h 12m", "3h", "0m". */
+export function secondsToHm(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h && m) return `${h}h ${m}m`
+  if (h) return `${h}h`
+  return `${m}m`
+}
+
+/**
+ * Seconds → duration that can span days, e.g. "2d 4h", "4h 30m", "12m", or "—"
+ * when zero. Use for cycle/lead times; `secondsToHm` for straight time tracked.
+ */
+export function secondsToDuration(seconds) {
+  const s = Math.round(Number(seconds) || 0)
+  if (!s) return '—'
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d) return h ? `${d}d ${h}h` : `${d}d`
+  if (h) return m ? `${h}h ${m}m` : `${h}h`
+  return `${m}m`
+}
+
+/**
+ * Ratio-style metrics (throughput, efficiency, avg/member…) → up to `digits`
+ * decimals with trailing zeros trimmed; "—" when not a finite number.
+ */
+export function formatMetricNumber(value, digits = 2) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return String(Number(n.toFixed(digits)))
+}
+
+/** Whole percent from a 0–1 fraction, e.g. "0.6667" → "67%". */
+export function fractionToPercent(value) {
+  return `${Math.round((Number(value) || 0) * 100)}%`
+}

@@ -225,6 +225,9 @@ export const GET_PROJECT_DETAIL = gql`
         sheets {
           id
           seconds
+          activities {
+            totalTime
+          }
         }
         attachments {
           id
@@ -495,7 +498,10 @@ export const ENUM_VALUES = gql`
 /**
  * Create a milestone under a project.
  * Variables: { input: ProjectMileStoneInput! } where input =
- * { projectId, name, description, expectedStartDate, expectedEndDate, isCounted, order }.
+ * { projectId, name, description, expectedStartDate, expectedEndDate, isCounted,
+ *   order, dependsOnIds }.
+ * `dependsOnIds` ([Int!] | null) are the ids of already-saved milestones this one
+ * depends on — it can only start once those are done. Null when there are none.
  */
 export const CREATE_MILESTONE = gql`
   mutation CreateProjectMilestone($input: ProjectMileStoneInput!) {

@@ -209,7 +209,7 @@ export const useProjectStore = defineStore('project', () => {
   /**
    * Create a milestone under a project.
    * @param {{ projectId, name, description, expectedStartDate, expectedEndDate,
-   *   isCounted, order }} input
+   *   isCounted, order, dependsOnIds }} input
    * @returns created `{ id, name }`
    */
   async function createMilestone(input) {

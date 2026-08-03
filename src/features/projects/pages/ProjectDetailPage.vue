@@ -5,7 +5,7 @@ import { useProjectStore } from '@/features/projects/stores/project'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
-import { formatDate } from '@/shared/utils/format'
+import { formatDate, secondsToHm, secondsToDuration } from '@/shared/utils/format'
 import {
   PencilSquareIcon,
   ViewColumnsIcon,
@@ -21,9 +21,6 @@ import {
   UserPlusIcon,
   DocumentIcon,
   ClipboardDocumentListIcon,
-  ChartBarIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
   ArrowPathIcon,
   ArrowTrendingUpIcon,
   ArrowsRightLeftIcon,
@@ -38,6 +35,7 @@ import TaskAssignModal from '@/features/projects/components/TaskAssignModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
 import AttachmentUploader from '@/features/projects/components/AttachmentUploader.vue'
 import ProjectMetricPanel from '@/features/projects/components/ProjectMetricPanel.vue'
+import MilestoneMetricPanel from '@/features/projects/components/MilestoneMetricPanel.vue'
 import ProjectStatusUpdateModal from '@/features/projects/components/ProjectStatusUpdateModal.vue'
 
 const route = useRoute()
@@ -76,53 +74,6 @@ function humanize(value) {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
 }
-
-/** Total seconds → "8h 12m" (or "0m"). */
-function secondsToHm(total) {
-  const s = Number(total) || 0
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  if (h && m) return `${h}h ${m}m`
-  if (h) return `${h}h`
-  return `${m}m`
-}
-
-/**
- * Seconds → "2d 4h" / "4h 30m" / "12m" — for cycle/lead times that can span days.
- * (averageCycleTime/averageLeadTime/leadTime are assumed to be in seconds like the
- * other duration fields; adjust the divisor if the backend reports another unit.)
- */
-function secondsToDuration(total) {
-  const s = Math.round(Number(total) || 0)
-  if (!s) return '—'
-  const d = Math.floor(s / 86400)
-  const h = Math.floor((s % 86400) / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  if (d) return h ? `${d}d ${h}h` : `${d}d`
-  if (h) return m ? `${h}h ${m}m` : `${h}h`
-  return `${m}m`
-}
-
-/** Score 0–100 → badge colour. `invert` for risk (a high score is bad). */
-function scoreColor(value, invert = false) {
-  const v = Number(value) || 0
-  const high = invert ? v < 34 : v >= 67
-  const low = invert ? v >= 67 : v < 34
-  if (high) return 'success'
-  if (low) return 'danger'
-  return 'warning'
-}
-
-/** Score 0–100 → Tailwind border/bg/text classes for a hero tile. */
-function scoreTint(value, invert = false) {
-  return {
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    warning: 'border-amber-200 bg-amber-50 text-amber-700',
-    danger: 'border-red-200 bg-red-50 text-red-700',
-  }[scoreColor(value, invert)]
-}
-
-const round = (v) => Math.round(Number(v) || 0)
 
 // ── Colour maps ──────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
@@ -199,6 +150,19 @@ const trackedSeconds = computed(() => {
   add(project.value?.sheets)
   for (const t of allTasks.value) add(t.sheets)
   return [...byId.values()].reduce((a, b) => a + b, 0)
+})
+
+/**
+ * Total approved time (seconds) from the sheet activities on the project —
+ * `sheets[].activities[].totalTime` (each `totalTime` is a seconds value, same
+ * as in the timesheet page). Sum across every sheet's activities.
+ */
+const sheetTotalSeconds = computed(() => {
+  let total = 0
+  for (const s of project.value?.sheets ?? []) {
+    for (const a of s.activities ?? []) total += Number(a?.totalTime) || 0
+  }
+  return total
 })
 
 const teamMembers = computed(() => project.value?.projectUnits?.length ?? 0)
@@ -468,10 +432,10 @@ onMounted(async () => {
           </span>
           <div class="min-w-0">
             <p class="text-caption">Task Progress</p>
-            <p class="text-lg font-bold text-slate-900">
-              {{ doneTaskCount }}/{{ taskCount }}
-              <span class="text-xs font-medium text-slate-400">Completed</span>
+            <p class="text-2xl font-bold leading-none text-slate-900 tabular-nums">
+              {{ doneTaskCount }}<span class="text-slate-400">/</span>{{ taskCount }}
             </p>
+            <p class="text-caption mt-1">Selesai</p>
           </div>
         </div>
 
@@ -483,7 +447,9 @@ onMounted(async () => {
           </span>
           <div class="min-w-0">
             <p class="text-caption">Milestone Progress</p>
-            <p class="text-lg font-bold text-slate-900">{{ milestoneProgress }}%</p>
+            <p class="text-2xl font-bold leading-none text-slate-900 tabular-nums">
+              {{ milestoneProgress }}<span class="text-base text-slate-400">%</span>
+            </p>
           </div>
         </div>
 
@@ -495,7 +461,9 @@ onMounted(async () => {
           </span>
           <div class="min-w-0">
             <p class="text-caption">Timesheet Tracked</p>
-            <p class="text-lg font-bold text-slate-900">{{ secondsToHm(trackedSeconds) }}</p>
+            <p class="text-2xl font-bold leading-none text-slate-900 tabular-nums">
+              {{ secondsToHm(trackedSeconds) }}
+            </p>
           </div>
         </div>
 
@@ -507,13 +475,15 @@ onMounted(async () => {
           </span>
           <div class="min-w-0">
             <p class="text-caption">Team Members</p>
-            <p class="text-lg font-bold text-slate-900">{{ teamMembers }}</p>
+            <p class="text-2xl font-bold leading-none text-slate-900 tabular-nums">
+              {{ teamMembers }}
+            </p>
           </div>
         </div>
       </div>
 
       <!-- ── Project metrics (headline computed metric) ──────────────────── -->
-      <ProjectMetricPanel :metric="project.metric" />
+      <ProjectMetricPanel :metric="project.metric" :total-tasks="taskCount" />
 
       <!-- ── Main + sidebar ──────────────────────────────────────────────── -->
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -655,95 +625,7 @@ onMounted(async () => {
                       <p v-if="m.description" class="text-xs text-slate-500">{{ m.description }}</p>
 
                       <!-- Milestone metrics -->
-                      <div
-                        v-if="m.metric"
-                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        <div class="mb-3 flex items-center justify-between gap-2">
-                          <p
-                            class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-600"
-                          >
-                            <ChartBarIcon class="h-4 w-4 text-primary-500" />
-                            Milestone Metrics
-                          </p>
-                          <span v-if="m.metric.calculatedAt" class="text-caption">
-                            Updated {{ formatDate(m.metric.calculatedAt) }}
-                          </span>
-                        </div>
-
-                        <!-- Hero: Health & Risk -->
-                        <div class="grid grid-cols-2 gap-3">
-                          <div
-                            class="flex items-center justify-between rounded-xl border p-3"
-                            :class="scoreTint(m.metric.healthScore)"
-                          >
-                            <div>
-                              <p class="text-xs font-medium opacity-80">Health Score</p>
-                              <p class="text-2xl font-bold leading-tight">
-                                {{ round(m.metric.healthScore) }}
-                                <span class="text-sm font-medium opacity-60">/100</span>
-                              </p>
-                            </div>
-                            <ShieldCheckIcon class="h-8 w-8 opacity-40" />
-                          </div>
-                          <div
-                            class="flex items-center justify-between rounded-xl border p-3"
-                            :class="scoreTint(m.metric.riskScore, true)"
-                          >
-                            <div>
-                              <p class="text-xs font-medium opacity-80">Risk Score</p>
-                              <p class="text-2xl font-bold leading-tight">
-                                {{ round(m.metric.riskScore) }}
-                                <span class="text-sm font-medium opacity-60">/100</span>
-                              </p>
-                            </div>
-                            <ExclamationTriangleIcon class="h-8 w-8 opacity-40" />
-                          </div>
-                        </div>
-
-                        <!-- Stat tiles — kept lean: completion & schedule signals only -->
-                        <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <CheckCircleIcon class="h-3.5 w-3.5 text-emerald-500" />
-                              Completed
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold text-slate-800">
-                              {{ m.metric.completedTasks ?? 0 }}
-                              <span class="text-sm font-medium text-slate-400"
-                                >/ {{ m.metric.totalTasks ?? 0 }}</span
-                              >
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <ExclamationTriangleIcon class="h-3.5 w-3.5 text-red-400" />
-                              Overdue
-                            </p>
-                            <p
-                              class="mt-0.5 text-lg font-bold"
-                              :class="
-                                (m.metric.overdueTasks || 0) > 0 ? 'text-red-600' : 'text-slate-800'
-                              "
-                            >
-                              {{ m.metric.overdueTasks ?? 0 }}
-                            </p>
-                          </div>
-                          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-                            <p class="text-caption flex items-center gap-1">
-                              <FlagIcon class="h-3.5 w-3.5 text-slate-400" />
-                              On Time / Late
-                            </p>
-                            <p class="mt-0.5 text-lg font-bold">
-                              <span class="text-emerald-600">{{
-                                m.metric.completedOnTime ?? 0
-                              }}</span>
-                              <span class="text-sm font-medium text-slate-300"> / </span>
-                              <span class="text-amber-600">{{ m.metric.completedLate ?? 0 }}</span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <MilestoneMetricPanel v-if="m.metric" :metric="m.metric" />
 
                       <div
                         v-for="t in m.tasks"
@@ -1193,6 +1075,20 @@ onMounted(async () => {
               }}</span>
             </div>
             <p class="text-caption mt-1">Total project hours · {{ secondsToHm(trackedSeconds) }}</p>
+
+            <!-- Total time from approved sheet activities -->
+            <div
+              class="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5"
+            >
+              <span class="text-caption flex items-center gap-1.5">
+                <ClockIcon class="h-3.5 w-3.5 text-sky-500" />
+                Total Time
+              </span>
+              <span class="text-sm font-bold text-slate-800 tabular-nums">
+                {{ secondsToHm(sheetTotalSeconds) }}
+              </span>
+            </div>
+
             <div
               class="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"
             >

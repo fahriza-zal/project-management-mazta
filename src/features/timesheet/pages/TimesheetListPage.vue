@@ -118,7 +118,9 @@ function formatDateTime(v) {
 function classify(status) {
   const u = String(status || '').toUpperCase()
   if (!u) return 'new'
-  if (/CLOSE|DONE|COMPLETE|FINISH|SELESAI|TUTUP/.test(u)) return 'closed'
+  // ARCHIVE(D) is the terminal state after approval — treat it as closed so it
+  // reads as final (and never offers a Start action) rather than "Not started".
+  if (/CLOSE|DONE|COMPLETE|FINISH|SELESAI|TUTUP|ARCHIV|ARSIP/.test(u)) return 'closed'
   if (/HOLD|PAUSE|TAHAN|PENDING/.test(u)) return 'hold'
   if (/START|PROGRESS|RUN|ACTIVE|ONGOING|OPEN|JALAN|MULAI/.test(u)) return 'running'
   return 'new'
@@ -191,11 +193,22 @@ function liveSeconds(row) {
 // can be (re)started or closed; a brand-new sheet can only be started.
 // A done (closed) timesheet is final: no more lifecycle actions on it.
 const isClosed = (row) => stateOf(row) === 'closed'
+// An approved (archived) timesheet is terminal — no lifecycle action of any kind,
+// even if its raw status string doesn't classify as closed.
 const canStart = (row) =>
-  isOwnTab.value && !isClosed(row) && stateOf(row) !== 'running' && auth.can(PERM.START)
-const canHold = (row) => isOwnTab.value && stateOf(row) === 'running' && auth.can(PERM.HOLD)
+  isOwnTab.value &&
+  !isClosed(row) &&
+  !isApproved(row) &&
+  stateOf(row) !== 'running' &&
+  auth.can(PERM.START)
+const canHold = (row) =>
+  isOwnTab.value && !isApproved(row) && stateOf(row) === 'running' && auth.can(PERM.HOLD)
 const canClose = (row) =>
-  isOwnTab.value && !isClosed(row) && stateOf(row) !== 'new' && auth.can(PERM.CLOSE)
+  isOwnTab.value &&
+  !isClosed(row) &&
+  !isApproved(row) &&
+  stateOf(row) !== 'new' &&
+  auth.can(PERM.CLOSE)
 
 /** PROJECT timesheets carry a project; COMMON (default-task) ones don't. */
 function typeLabel(row) {

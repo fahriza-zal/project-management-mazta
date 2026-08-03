@@ -5,11 +5,17 @@ import BaseInput from '@/shared/components/base/BaseInput.vue'
 import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
+import BaseMultiSelect from '@/shared/components/base/BaseMultiSelect.vue'
 
 /**
  * Dynamic Milestone Builder — add several milestones for a project. v-model is
- * an array of `{ name, description, expectedStartDate, expectedEndDate, isCounted }`.
- * `order` and `projectId` are assigned by the page at submit time.
+ * an array of `{ name, description, expectedStartDate, expectedEndDate, isCounted,
+ * dependsOnIds }`. `order` and `projectId` are assigned by the page at submit time.
+ *
+ * `dependsOnIds` lists the ids of *already-saved* milestones this one depends on
+ * (a milestone can only start once its dependencies are done). Because it can only
+ * reference persisted milestones, the picker offers the other rows that carry an
+ * `_id` (excluding itself).
  *
  * A persisted row carries an `_id`. By default persisted rows are read-only with
  * a "Saved" badge (create flow). Pass `allowEdit` to keep them editable so the
@@ -29,6 +35,7 @@ const newRow = () => ({
   expectedStartDate: '',
   expectedEndDate: '',
   isCounted: true,
+  dependsOnIds: [],
 })
 const rows = ref(props.modelValue.length ? [...props.modelValue] : [])
 
@@ -40,6 +47,45 @@ function add() {
 
 function remove(index) {
   rows.value.splice(index, 1)
+}
+
+/** Whether a row's fields are editable (new row, or saved row with `allowEdit`). */
+function editable(milestone) {
+  return !milestone._id || props.allowEdit
+}
+
+/**
+ * Candidate dependencies for the row at `index`: every *other* row that is
+ * already saved (has `_id`), optionally filtered by the search term. Returned as
+ * `{ id, name }` for BaseMultiSelect. Local (no server call) — resolved via a
+ * Promise so it matches the component's `fetcher` contract.
+ */
+function dependencyFetcher(index) {
+  return (term) => {
+    const t = String(term || '').toLowerCase()
+    const options = rows.value
+      .filter(
+        (m, i) =>
+          i !== index &&
+          m._id != null &&
+          String(m.name || '')
+            .toLowerCase()
+            .includes(t),
+      )
+      .map((m) => ({ id: m._id, name: m.name || `Milestone #${m._id}` }))
+    return Promise.resolve(options)
+  }
+}
+
+/**
+ * Prefill chips for a row's already-selected dependencies, so the selection
+ * survives a builder remount (the `:key` bump the page does after a delete).
+ */
+function initialDependencies(milestone) {
+  return (milestone.dependsOnIds ?? []).map((id) => {
+    const found = rows.value.find((m) => m._id === id)
+    return { id, name: found?.name || `Milestone #${id}` }
+  })
 }
 </script>
 
@@ -138,6 +184,18 @@ function remove(index) {
             />
           </button>
         </div>
+
+        <!-- Depends on: only offer other, already-saved milestones. Hidden when
+             this row isn't editable or there is nothing saved to depend on yet. -->
+        <BaseMultiSelect
+          v-if="editable(milestone) && rows.some((m, i) => i !== index && m._id != null)"
+          v-model="milestone.dependsOnIds"
+          :initial-items="initialDependencies(milestone)"
+          :fetcher="dependencyFetcher(index)"
+          label="Depends on"
+          placeholder="Milestone yang harus selesai lebih dulu…"
+          empty-text="Belum ada milestone tersimpan lain."
+        />
       </div>
     </div>
 

@@ -196,6 +196,7 @@ async function submitMilestones() {
     for (let i = 0; i < milestones.value.length; i++) {
       const m = milestones.value[i]
       if (!m.name.trim()) continue
+      const deps = (m.dependsOnIds ?? []).map(Number).filter((id) => !Number.isNaN(id))
       const input = {
         projectId,
         name: m.name.trim(),
@@ -204,6 +205,7 @@ async function submitMilestones() {
         expectedEndDate: m.expectedEndDate || null,
         isCounted: m.isCounted,
         order: i + 1,
+        dependsOnIds: deps.length ? deps : null,
       }
       if (m._id) {
         await projectStore.updateMilestone(m._id, input)

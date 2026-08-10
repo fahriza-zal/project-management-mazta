@@ -196,6 +196,7 @@ export const SHEET_DASHBOARD_SUBSCRIPTION = gql`
           id
           fullName
           image
+          roleName
         }
         task {
           ... on Task {

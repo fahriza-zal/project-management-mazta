@@ -39,10 +39,15 @@ const auth = useAuthStore()
 const { items, pagination, loading } = storeToRefs(store)
 const { success, error: toastError } = useToast()
 
-/** Unit ids of the signed-in employee (from `pm_profile` → employee.units). */
-const myUnitIds = computed(() =>
-  (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean),
-)
+/**
+ * Unit ids to scope the project list by. When the signed-in employee has no
+ * `parent` (top of the hierarchy) we send `null` to list every project
+ * unscoped; otherwise we scope to the employee's own units.
+ */
+const myUnitIds = computed(() => {
+  if (!auth.employee?.parent) return null
+  return (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean)
+})
 
 const search = ref('')
 // Default ke card di layar mobile (< breakpoint `sm` Tailwind = 640px), table di desktop.

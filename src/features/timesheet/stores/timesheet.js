@@ -88,6 +88,71 @@ export const useTimesheetStore = defineStore('timesheet', () => {
   }
 
   /**
+   * Sum worked seconds for one employee over a work-date range, by paging through
+   * `listTimeSheet` and adding up each row's banked `seconds`. Also splits the
+   * total by task category — PROJECT rows carry a `project`, COMMON ones don't —
+   * so callers can show how the time is distributed. Unlike `fetchList`, it does
+   * **not** touch `items`/`pagination`, so other pages (e.g. the personal
+   * dashboard) can compute a total without disturbing the list view.
+   * `workDateGte` / `workDateLte` are inclusive `'yyyy-MM-dd'` strings or null.
+   * @param {{ employeeId?: number|null, workDateGte?: string|null, workDateLte?: string|null }} [params]
+   * @returns {Promise<{ totalSeconds: number, count: number, projectSeconds: number, commonSeconds: number, projectCount: number, commonCount: number }>}
+   */
+  async function fetchTotalSeconds({
+    employeeId = null,
+    workDateGte = null,
+    workDateLte = null,
+  } = {}) {
+    const PAGE_SIZE = 100
+    const MAX_PAGES = 100 // safety cap against an unexpected non-terminating pager
+    let page = 1
+    let totalSeconds = 0
+    let count = 0
+    let projectSeconds = 0
+    let commonSeconds = 0
+    let projectCount = 0
+    let commonCount = 0
+    try {
+      for (; page <= MAX_PAGES; page++) {
+        const { data } = await apolloClient.query({
+          query: LIST_TIMESHEET,
+          variables: {
+            params: {
+              employeeId,
+              employeeIds: null,
+              page,
+              pageSize: PAGE_SIZE,
+              search: null,
+              workDateGte,
+              workDateLte,
+            },
+          },
+          fetchPolicy: 'network-only',
+        })
+        const result = data?.listTimeSheet?.data
+        const results = result?.results ?? []
+        for (const r of results) {
+          const sec = Number(r.seconds) || 0
+          totalSeconds += sec
+          // A PROJECT timesheet carries a `project`; a COMMON (default-task) one doesn't.
+          if (r.project) {
+            projectSeconds += sec
+            projectCount += 1
+          } else {
+            commonSeconds += sec
+            commonCount += 1
+          }
+        }
+        count = result?.count ?? count
+        if (!result?.hasNext) break
+      }
+      return { totalSeconds, count, projectSeconds, commonSeconds, projectCount, commonCount }
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal menghitung jam kerja.'))
+    }
+  }
+
+  /**
    * Create a timesheet.
    * @param {{ employeeId, sheetType, taskId, defaultTaskId, description }} input
    */
@@ -191,6 +256,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     saving,
     error,
     fetchList,
+    fetchTotalSeconds,
     create,
     startSheet,
     holdSheet,

@@ -34,6 +34,10 @@ export const LOGIN = gql`
             id
             fullName
           }
+          parent {
+            id
+            fullName
+          }
           companies {
             id
             name
@@ -87,6 +91,10 @@ export const CHANGE_PASSWORD = gql`
             name
           }
           childrens {
+            id
+            fullName
+          }
+          parent {
             id
             fullName
           }

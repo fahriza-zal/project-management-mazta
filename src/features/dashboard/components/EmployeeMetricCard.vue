@@ -10,16 +10,22 @@ import {
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
 import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
+import BaseButton from '@/shared/components/base/BaseButton.vue'
 import { formatDate, formatDuration } from '@/shared/utils/format'
 
 /**
  * One employee's timesheet metrics (from `sheetDashboard.metrics[]`).
  * `self` renders a larger, highlighted "hero" variant for the signed-in user.
+ * When `showCalc` is on, a "Hitung Jam Kerja" button emits `calculate` with this
+ * card's `employee` so the parent can total that person's hours over a range.
  */
 const props = defineProps({
   metric: { type: Object, required: true },
   self: { type: Boolean, default: false },
+  showCalc: { type: Boolean, default: false },
 })
+
+const emit = defineEmits(['calculate'])
 
 const num = (v) => {
   const n = Number(v)
@@ -58,21 +64,32 @@ const priorityColor = { low: 'slate', medium: 'info', high: 'warning', critical:
 <template>
   <BaseCard :class="self ? 'ring-2 ring-primary-200' : ''">
     <!-- Identity -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-start gap-3">
       <BaseAvatar
         :name="employee.fullName"
         :src="employee.image || ''"
         :size="self ? 'lg' : 'md'"
       />
-      <div class="min-w-0">
+      <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <h3 class="truncate font-semibold text-slate-900" :class="self ? 'text-lg' : 'text-sm'">
             {{ employee.fullName || 'Tanpa nama' }}
           </h3>
           <BaseBadge v-if="self" color="primary" size="sm">Anda</BaseBadge>
         </div>
-        <p class="text-xs text-slate-400">Employee #{{ employee.id }}</p>
+        <p class="text-xs text-slate-400">{{ employee.roleName || 'Tanpa role' }}</p>
       </div>
+      <BaseButton
+        v-if="showCalc && employee.id != null"
+        variant="primary"
+        size="sm"
+        type="button"
+        class="shrink-0"
+        @click="emit('calculate', employee)"
+      >
+        <ClockIcon class="h-4 w-4" />
+        Jam Kerja
+      </BaseButton>
     </div>
 
     <!-- KPI row -->
@@ -88,7 +105,7 @@ const priorityColor = { low: 'slate', medium: 'info', high: 'warning', critical:
 
     <!-- Time split -->
     <div class="mt-4">
-      <p class="mb-2 text-xs font-medium text-slate-500">Distribusi Waktu</p>
+      <p class="mb-2 text-xs font-medium text-slate-500">Distribusi Waktu Harian</p>
       <template v-if="split.total">
         <div class="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
           <div

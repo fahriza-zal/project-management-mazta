@@ -586,6 +586,7 @@ onMounted(async () => {
                             v-for="e in milestoneAssignees(m).slice(0, 4)"
                             :key="e.id || e.fullName"
                             :name="e.fullName || '?'"
+                            :src="e.image || ''"
                             size="xs"
                           />
                         </div>
@@ -715,6 +716,7 @@ onMounted(async () => {
                                 v-for="a in t.assignments"
                                 :key="a.id"
                                 :name="a.employee?.fullName || '?'"
+                                :src="a.employee?.image || ''"
                                 size="xs"
                               />
                             </div>
@@ -875,6 +877,7 @@ onMounted(async () => {
                           v-for="a in t.assignments"
                           :key="a.id"
                           :name="a.employee?.fullName || '?'"
+                          :src="a.employee?.image || ''"
                           size="xs"
                         />
                       </div>

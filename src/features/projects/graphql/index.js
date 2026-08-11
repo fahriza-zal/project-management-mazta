@@ -301,6 +301,7 @@ export const GET_PROJECT_DETAIL = gql`
               employee {
                 id
                 fullName
+                image
               }
             }
             comments {
@@ -381,6 +382,7 @@ export const GET_PROJECT_BOARD = gql`
               employee {
                 id
                 fullName
+                image
               }
             }
             comments {

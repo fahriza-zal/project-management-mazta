@@ -172,6 +172,7 @@ function onDrop(statusId) {
                 v-for="a in task.assignments"
                 :key="a.id"
                 :name="a.employee?.fullName || '?'"
+                :src="a.employee?.image || ''"
                 size="xs"
               />
             </div>

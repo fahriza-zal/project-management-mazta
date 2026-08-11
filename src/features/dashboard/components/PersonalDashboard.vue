@@ -149,9 +149,11 @@ const ordered = computed(() => {
   return out
 })
 
-// The signed-in employee's own metrics (fall back to the first entry / tree root).
+// The signed-in employee's own metrics — strictly matched by id. If the signed-in
+// employee has no metrics of their own, there is no "self" card (don't mislabel a
+// teammate as "Anda"); everyone else falls under the team list.
 const selfMetric = computed(
-  () => ordered.value.find((m) => m.employee?.id === employeeId.value) || ordered.value[0] || null,
+  () => ordered.value.find((m) => m.employee?.id === employeeId.value) || null,
 )
 const team = computed(() => ordered.value.filter((m) => m !== selfMetric.value))
 </script>
@@ -179,14 +181,14 @@ const team = computed(() => ordered.value.filter((m) => m !== selfMetric.value))
 
       <!-- Loading (first payload not in yet) -->
       <div
-        v-if="loading && !selfMetric"
+        v-if="loading && !ordered.length"
         class="surface px-4 py-16 text-center text-sm text-slate-400"
       >
         Menyambungkan data langsung…
       </div>
 
       <!-- No data yet -->
-      <BaseCard v-else-if="!selfMetric">
+      <BaseCard v-else-if="!ordered.length">
         <BaseEmpty
           :icon="ClockIcon"
           title="Belum ada aktivitas"
@@ -196,7 +198,13 @@ const team = computed(() => ordered.value.filter((m) => m !== selfMetric.value))
 
       <template v-else>
         <!-- Signed-in employee -->
-        <EmployeeMetricCard :metric="selfMetric" self :show-calc="canCalc" @calculate="openCalc" />
+        <EmployeeMetricCard
+          v-if="selfMetric"
+          :metric="selfMetric"
+          self
+          :show-calc="canCalc"
+          @calculate="openCalc"
+        />
 
         <!-- Team members -->
         <div v-if="team.length">

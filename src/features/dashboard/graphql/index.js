@@ -30,9 +30,6 @@ export const GET_RANGE_PROJECT = gql`
           id
           name
           status
-          expectedStartDate
-          expectedEndDate
-          actualEndDate
           tasks {
             id
             title
@@ -46,6 +43,9 @@ export const GET_RANGE_PROJECT = gql`
             dueDate
             doneAt
           }
+          expectedStartDate
+          expectedEndDate
+          actualEndDate
         }
         projectUnits {
           id
@@ -142,39 +142,39 @@ export const GENERAL_DASHBOARD_SUBSCRIPTION = gql`
 /** Time-series history of dashboard metrics. Response: data.historyDashboard.histories[]. */
 export const HISTORY_DASHBOARD_SUBSCRIPTION = gql`
   subscription HistoryDashboard {
-    historyDashboard {
-      histories {
-        totalMilestones
-        completedMilestones
-        totalTasks
-        completedTasks
-        estimatedSeconds
-        actualSeconds
-        progress
-        overdueTasks
-        completedOnTime
-        completedLate
-        averageCycleTime
-        averageLeadTime
-        totalComments
-        totalAttachments
-        totalStatusChanges
-        velocity
-        throughput
-        completionRate
-        activeMembers
-        averageTaskPerMember
-        utilization
-        scheduleVariance
-        efficiency
-        riskScore
-        healthScore
-        projectAgeDays
-        id
-        workDate
-      }
+  historyDashboard {
+    histories {
+      totalMilestones
+      completedMilestones
+      totalTasks
+      completedTasks
+      estimatedSeconds
+      actualSeconds
+      progress
+      overdueTasks
+      completedOnTime
+      completedLate
+      averageCycleTime
+      averageLeadTime
+      totalComments
+      totalAttachments
+      totalStatusChanges
+      velocity
+      throughput
+      completionRate
+      activeMembers
+      averageTaskPerMember
+      utilization
+      scheduleVariance
+      efficiency
+      riskScore
+      healthScore
+      projectAgeDays
+      id
+      workDate
     }
   }
+}
 `
 
 /**

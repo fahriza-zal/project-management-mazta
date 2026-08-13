@@ -57,13 +57,6 @@ const tasks = computed(() =>
   }),
 )
 
-// Distinct projects the employee is involved in (from PROJECT tasks).
-const projectCount = computed(() => {
-  const ids = new Set()
-  for (const t of tasks.value) if (t.projectId != null) ids.add(t.projectId)
-  return ids.size
-})
-
 const children = computed(() => employee.value?.childrens ?? [])
 const units = computed(() => employee.value?.units ?? [])
 const companies = computed(() => employee.value?.companies ?? [])
@@ -141,20 +134,7 @@ const details = computed(() => {
       </BaseCard>
 
       <!-- Quick stats -->
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <BaseCard>
-          <div class="flex items-center gap-3">
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"
-            >
-              <FolderIcon class="h-5 w-5" />
-            </div>
-            <div>
-              <p class="text-xl font-bold text-slate-900">{{ projectCount }}</p>
-              <p class="text-xs text-slate-500">Projek</p>
-            </div>
-          </div>
-        </BaseCard>
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <BaseCard>
           <div class="flex items-center gap-3">
             <div

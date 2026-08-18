@@ -27,7 +27,7 @@ const loading = ref(false)
 const busyId = ref(null) // toStatusId yang sedang diproses (untuk spinner + kunci baris)
 const detail = ref(null) // status detail termasuk transitionTo
 const allStatuses = ref([]) // kandidat status tujuan
-const approvalTypeOptions = ref([]) // { value, label } dari enum ApprovalTypeChoices
+const approvalTypeOptions = ref([]) // { value, label } dari choice group APPROVAL_TYPE
 
 const fromName = computed(() => props.status?.name ?? '')
 
@@ -53,14 +53,14 @@ async function load() {
   if (!props.status) return
   loading.value = true
   try {
-    const [d, list, enumNames] = await Promise.all([
+    const [d, list, approvalValues] = await Promise.all([
       store.fetchById(props.status.id),
       store.fetchStatusOptions(),
-      store.fetchEnumValues('ApprovalTypeChoices').catch(() => []),
+      store.fetchChoices('APPROVAL_TYPE').catch(() => []),
     ])
     detail.value = d
     allStatuses.value = list
-    approvalTypeOptions.value = enumNames.map((name) => ({ value: name, label: humanize(name) }))
+    approvalTypeOptions.value = approvalValues.map((v) => ({ value: v, label: humanize(v) }))
   } catch (err) {
     toastError(err.message)
   } finally {

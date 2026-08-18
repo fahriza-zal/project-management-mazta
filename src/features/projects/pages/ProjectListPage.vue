@@ -234,10 +234,10 @@ async function confirmDelete() {
   }
 }
 
-async function loadEnum(typeName, target) {
+async function loadChoices(group, target) {
   try {
-    const names = await store.fetchEnumValues(typeName)
-    target.value = names.map((name) => ({ value: name, label: humanize(name) }))
+    const values = await store.fetchChoices(group)
+    target.value = values.map((v) => ({ value: v, label: humanize(v) }))
   } catch {
     target.value = []
   }
@@ -246,8 +246,8 @@ async function loadEnum(typeName, target) {
 onMounted(() => {
   auth.hydrate() // ensure employee.units is available for the unit filter
   load()
-  loadEnum('ProjectCategoryChoices', categoryOptions)
-  loadEnum('ProjectModeChoices', modeOptions)
+  loadChoices('PROJECT_CATEGORY', categoryOptions)
+  loadChoices('PROJECT_MODE', modeOptions)
 })
 </script>
 

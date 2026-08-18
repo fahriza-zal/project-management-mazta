@@ -27,7 +27,7 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   // Milestones from the sibling builder, so a task can be attached to one.
   milestones: { type: Array, default: () => [] },
-  // Priority options ({ value, label }) sourced from the PriorityChoices enum.
+  // Priority options ({ value, label }) sourced from the PRIORITY choice group.
   priorityOptions: { type: Array, default: () => [] },
   // Keep persisted rows (with `_id`) editable instead of read-only.
   allowEdit: { type: Boolean, default: false },

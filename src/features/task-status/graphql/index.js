@@ -186,16 +186,13 @@ export const RESTORE_TASK_STATUS_TRANSITION = gql`
 `
 
 /**
- * Introspect a GraphQL enum's values — used for the transition `approvalType` select
- * (name: "ApprovalTypeChoices"). Variables: { name: String! }.
+ * Fetch backend-defined choice options — used for the transition `approvalType`
+ * select (group: "APPROVAL_TYPE"). Variables: { group: EmployeeChoiceGroup! }.
+ * Returns `data.choices` = [{ label, value }].
  */
-export const ENUM_VALUES = gql`
-  query EnumValues($name: String!) {
-    __type(name: $name) {
-      enumValues {
-        name
-      }
-    }
+export const CHOICES = gql`
+  query Choices($group: EmployeeChoiceGroup!) {
+    choices(group: $group)
   }
 `
 

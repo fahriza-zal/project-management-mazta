@@ -483,17 +483,14 @@ export const LIST_PROJECTS = gql`
 `
 
 /**
- * Introspect a GraphQL enum's values. Used to populate the Project Category,
- * Project Mode, and Task Priority selects. Variables: { name: String! } —
- * e.g. "ProjectCategoryChoices", "ProjectModeChoices", "PriorityChoices".
+ * Fetch backend-defined choice options for an enum group. Used to populate the
+ * Project Category, Project Mode, and Task Priority selects. Variables:
+ * { group: EmployeeChoiceGroup! } — e.g. "PROJECT_CATEGORY", "PROJECT_MODE", "PRIORITY".
+ * Returns `data.choices` = [{ label, value }] (value is the canonical API value).
  */
-export const ENUM_VALUES = gql`
-  query EnumValues($name: String!) {
-    __type(name: $name) {
-      enumValues {
-        name
-      }
-    }
+export const CHOICES = gql`
+  query Choices($group: EmployeeChoiceGroup!) {
+    choices(group: $group)
   }
 `
 

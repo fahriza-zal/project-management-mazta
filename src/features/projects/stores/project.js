@@ -11,7 +11,7 @@ import {
   GET_PROJECT_BOARD,
   LIST_PROJECT,
   LIST_PROJECTS,
-  ENUM_VALUES,
+  CHOICES,
   CREATE_MILESTONE,
   EDIT_MILESTONE,
   DELETE_MILESTONE,
@@ -554,14 +554,14 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  /** Fetch the values of a GraphQL enum by type name. Returns string[] (raw names). */
-  async function fetchEnumValues(name) {
+  /** Fetch choice options for an enum group. Returns string[] of canonical values. */
+  async function fetchChoices(group) {
     const { data } = await apolloClient.query({
-      query: ENUM_VALUES,
-      variables: { name },
+      query: CHOICES,
+      variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.__type?.enumValues ?? []).map((e) => e.name)
+    return (data?.choices ?? []).map((c) => c.value)
   }
 
   return {
@@ -600,6 +600,6 @@ export const useProjectStore = defineStore('project', () => {
     unlockProject,
     lockTask,
     unlockTask,
-    fetchEnumValues,
+    fetchChoices,
   }
 })

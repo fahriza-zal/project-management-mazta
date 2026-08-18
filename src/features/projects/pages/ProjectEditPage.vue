@@ -65,10 +65,10 @@ function humanize(name) {
     .join(' ')
 }
 
-async function loadEnum(typeName, target) {
+async function loadChoices(group, target) {
   try {
-    const names = await projectStore.fetchEnumValues(typeName)
-    target.value = names.map((name) => ({ value: name, label: humanize(name) }))
+    const values = await projectStore.fetchChoices(group)
+    target.value = values.map((v) => ({ value: v, label: humanize(v) }))
   } catch {
     target.value = []
   }
@@ -397,9 +397,9 @@ onMounted(async () => {
     // values (category/mode, and each task's priority) only show up if their
     // <option> already exists when the form is filled, so wait for both here.
     const [, , , project] = await Promise.all([
-      loadEnum('ProjectCategoryChoices', categoryOptions),
-      loadEnum('ProjectModeChoices', modeOptions),
-      loadEnum('PriorityChoices', priorityOptions),
+      loadChoices('PROJECT_CATEGORY', categoryOptions),
+      loadChoices('PROJECT_MODE', modeOptions),
+      loadChoices('PRIORITY', priorityOptions),
       projectStore.fetchProject(projectId),
     ])
     if (!project) {

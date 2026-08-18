@@ -57,10 +57,10 @@ function humanize(name) {
     .join(' ')
 }
 
-async function loadEnum(typeName, target) {
+async function loadChoices(group, target) {
   try {
-    const names = await projectStore.fetchEnumValues(typeName)
-    target.value = names.map((name) => ({ value: name, label: humanize(name) }))
+    const values = await projectStore.fetchChoices(group)
+    target.value = values.map((v) => ({ value: v, label: humanize(v) }))
   } catch {
     target.value = []
   }
@@ -373,9 +373,9 @@ function finish() {
 }
 
 onMounted(() => {
-  loadEnum('ProjectCategoryChoices', categoryOptions)
-  loadEnum('ProjectModeChoices', modeOptions)
-  loadEnum('PriorityChoices', priorityOptions)
+  loadChoices('PROJECT_CATEGORY', categoryOptions)
+  loadChoices('PROJECT_MODE', modeOptions)
+  loadChoices('PRIORITY', priorityOptions)
 })
 </script>
 

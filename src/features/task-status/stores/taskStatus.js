@@ -12,7 +12,7 @@ import {
   EDIT_TASK_STATUS_TRANSITION,
   DELETE_TASK_STATUS_TRANSITION,
   RESTORE_TASK_STATUS_TRANSITION,
-  ENUM_VALUES,
+  CHOICES,
   LIST_UNIT,
   LIST_COMPANY,
 } from '@/features/task-status/graphql'
@@ -227,14 +227,14 @@ export const useTaskStatusStore = defineStore('taskStatus', () => {
     }
   }
 
-  /** Fetch the values of a GraphQL enum by type name. Returns string[] (raw names). */
-  async function fetchEnumValues(name) {
+  /** Fetch choice options for an enum group. Returns string[] of canonical values. */
+  async function fetchChoices(group) {
     const { data } = await apolloClient.query({
-      query: ENUM_VALUES,
-      variables: { name },
+      query: CHOICES,
+      variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.__type?.enumValues ?? []).map((e) => e.name)
+    return (data?.choices ?? []).map((c) => c.value)
   }
 
   /** Searchable unit options for the picker. Returns [{ id, name }]. */
@@ -273,7 +273,7 @@ export const useTaskStatusStore = defineStore('taskStatus', () => {
     editTransition,
     deleteTransition,
     restoreTransition,
-    fetchEnumValues,
+    fetchChoices,
     fetchUnitOptions,
     fetchCompanyOptions,
   }

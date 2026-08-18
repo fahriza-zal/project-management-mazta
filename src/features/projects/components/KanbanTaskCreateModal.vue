@@ -62,8 +62,8 @@ function humanize(name) {
 
 async function loadPriority() {
   try {
-    const names = await store.fetchEnumValues('PriorityChoices')
-    priorityOptions.value = names.map((n) => ({ value: n, label: humanize(n) }))
+    const values = await store.fetchChoices('PRIORITY')
+    priorityOptions.value = values.map((v) => ({ value: v, label: humanize(v) }))
   } catch {
     priorityOptions.value = []
   }

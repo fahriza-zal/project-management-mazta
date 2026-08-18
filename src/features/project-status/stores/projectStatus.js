@@ -12,7 +12,7 @@ import {
   EDIT_PROJECT_STATUS_TRANSITION,
   DELETE_PROJECT_STATUS_TRANSITION,
   RESTORE_PROJECT_STATUS_TRANSITION,
-  ENUM_VALUES,
+  CHOICES,
   LIST_UNIT,
   LIST_COMPANY,
 } from '@/features/project-status/graphql'
@@ -215,14 +215,14 @@ export const useProjectStatusStore = defineStore('projectStatus', () => {
     }
   }
 
-  /** Fetch the values of a GraphQL enum by type name. Returns string[] (raw names). */
-  async function fetchEnumValues(name) {
+  /** Fetch choice options for an enum group. Returns string[] of canonical values. */
+  async function fetchChoices(group) {
     const { data } = await apolloClient.query({
-      query: ENUM_VALUES,
-      variables: { name },
+      query: CHOICES,
+      variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.__type?.enumValues ?? []).map((e) => e.name)
+    return (data?.choices ?? []).map((c) => c.value)
   }
 
   /** Searchable unit options for the picker. Returns [{ id, name }]. */
@@ -261,7 +261,7 @@ export const useProjectStatusStore = defineStore('projectStatus', () => {
     editTransition,
     deleteTransition,
     restoreTransition,
-    fetchEnumValues,
+    fetchChoices,
     fetchUnitOptions,
     fetchCompanyOptions,
   }

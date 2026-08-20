@@ -554,14 +554,18 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  /** Fetch choice options for an enum group. Returns string[] of canonical values. */
+  /**
+   * Fetch choice options for an enum group via `employeeChoices(group)`. Returns
+   * string[] of canonical values. The field may return either `[{ label, value }]`
+   * or a plain string array, so we normalize to the value in both cases.
+   */
   async function fetchChoices(group) {
     const { data } = await apolloClient.query({
       query: CHOICES,
       variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.choices ?? []).map((c) => c.value)
+    return (data?.employeeChoices ?? []).map((c) => (c && typeof c === 'object' ? c.value : c))
   }
 
   return {

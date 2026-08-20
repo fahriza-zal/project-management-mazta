@@ -192,11 +192,11 @@ export const RESTORE_PROJECT_STATUS_TRANSITION = gql`
 /**
  * Fetch backend-defined choice options — used for the transition `approvalType`
  * select (group: "APPROVAL_TYPE"). Variables: { group: EmployeeChoiceGroup! }.
- * Returns `data.choices` = [{ label, value }].
+ * Returns `data.employeeChoices` (canonical API values; see store for shape handling).
  */
 export const CHOICES = gql`
-  query Choices($group: EmployeeChoiceGroup!) {
-    choices(group: $group)
+  query EmployeeChoices($group: EmployeeChoiceGroup!) {
+    employeeChoices(group: $group)
   }
 `
 

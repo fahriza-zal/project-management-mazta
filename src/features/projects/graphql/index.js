@@ -486,11 +486,11 @@ export const LIST_PROJECTS = gql`
  * Fetch backend-defined choice options for an enum group. Used to populate the
  * Project Category, Project Mode, and Task Priority selects. Variables:
  * { group: EmployeeChoiceGroup! } — e.g. "PROJECT_CATEGORY", "PROJECT_MODE", "PRIORITY".
- * Returns `data.choices` = [{ label, value }] (value is the canonical API value).
+ * Returns `data.employeeChoices` (canonical API values; see store for shape handling).
  */
 export const CHOICES = gql`
-  query Choices($group: EmployeeChoiceGroup!) {
-    choices(group: $group)
+  query EmployeeChoices($group: EmployeeChoiceGroup!) {
+    employeeChoices(group: $group)
   }
 `
 

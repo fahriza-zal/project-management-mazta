@@ -11,4 +11,5 @@ export const PERM = {
   HOLD: 'holdSheet',
   CLOSE: 'closeSheet',
   APPROVE: 'approveSheet',
+  EXPORT: 'exportTimeSheet',
 }

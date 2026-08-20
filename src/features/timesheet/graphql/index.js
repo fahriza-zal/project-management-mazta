@@ -179,3 +179,44 @@ export const APPROVE_SHEET = gql`
     }
   }
 `
+
+/**
+ * Searchable employee list — source for the Export tab's employee multi-select.
+ * Variables: { params: EmployeeParams } — { page, pageSize, search }. Returns { id, fullName }.
+ */
+export const LIST_EMPLOYEE = gql`
+  query ListEmployee($params: EmployeeParams) {
+    listEmployee(params: $params) {
+      data {
+        results {
+          id
+          fullName
+        }
+      }
+    }
+  }
+`
+
+/**
+ * Request an async export of timesheets (Export tab). The backend queues the job
+ * and emails the resulting file to `email`; the response is just an
+ * acknowledgement, not the file itself.
+ * Variables: { input: TimeSheetExportInput! } where input =
+ * { dateFrom, dateTo, email, filters } — `dateFrom`/`dateTo` are inclusive
+ * `'yyyy-MM-dd'` strings (null = unbounded), `email` is the recipient address.
+ * `filters` = { employeeIds, page, pageSize }: `employeeIds` scopes the export to
+ * the picked employees (null = all), `page`/`pageSize` are null (export is not paged).
+ * Response: { detail, estimatedSeconds, requestId, timeSheetCount }.
+ */
+export const EXPORT_TIMESHEET = gql`
+  mutation ExportTimeSheet($input: TimeSheetExportInput!) {
+    exportTimeSheet(input: $input) {
+      data {
+        detail
+        estimatedSeconds
+        requestId
+        timeSheetCount
+      }
+    }
+  }
+`

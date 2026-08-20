@@ -9,7 +9,12 @@ import {
   HOLD_SHEET,
   CLOSE_SHEET,
   APPROVE_SHEET,
+  EXPORT_TIMESHEET,
+  LIST_EMPLOYEE,
 } from '@/features/timesheet/graphql'
+
+// Page size for the employee picker's server-side search on the Export tab.
+const PICKER_PAGE_SIZE = 20
 
 /** Turn an Apollo/GraphQL error into a user-friendly message. */
 function toMessage(err, fallback) {
@@ -228,6 +233,60 @@ export const useTimesheetStore = defineStore('timesheet', () => {
   }
 
   /**
+   * Request an async timesheet export. The backend queues the job and emails the
+   * result to `input.email`; this returns the acknowledgement
+   * `{ detail, estimatedSeconds, requestId, timeSheetCount }` (not the file).
+   * `employeeIds` scopes the export to the picked employees (empty/omitted = all);
+   * it is sent inside `filters` (with `page`/`pageSize` null — the export isn't paged).
+   * @param {{ dateFrom?: string|null, dateTo?: string|null, email: string, employeeIds?: number[]|null }} input
+   */
+  async function exportTimeSheet({
+    dateFrom = null,
+    dateTo = null,
+    email,
+    employeeIds = null,
+  } = {}) {
+    saving.value = true
+    error.value = ''
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: EXPORT_TIMESHEET,
+        variables: {
+          input: {
+            dateFrom: dateFrom || null,
+            dateTo: dateTo || null,
+            email,
+            filters: {
+              employeeIds: employeeIds?.length ? employeeIds.map(Number) : null,
+              page: null,
+              pageSize: null,
+            },
+          },
+        },
+      })
+      return data?.exportTimeSheet?.data ?? null
+    } catch (err) {
+      error.value = toMessage(err, 'Gagal mengekspor timesheet.')
+      throw new Error(error.value)
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Searchable employee options for the Export tab's multi-select. The picker
+   * expects `{ id, name }`, so `fullName` is mapped to `name`. Returns [{ id, name }].
+   */
+  async function fetchEmployeeOptions(search) {
+    const { data } = await apolloClient.query({
+      query: LIST_EMPLOYEE,
+      variables: { params: { page: 1, pageSize: PICKER_PAGE_SIZE, search: search || null } },
+      fetchPolicy: 'network-only',
+    })
+    return (data?.listEmployee?.data?.results ?? []).map((e) => ({ id: e.id, name: e.fullName }))
+  }
+
+  /**
    * Tasks assignable to an employee (mixed PROJECT + COMMON), flattened to
    * `{ id, title, category, priority, projectName }`. The API nests each item as
    * `{ task: Task|DefaultTask, category, priority }`; `category` routes the chosen
@@ -262,6 +321,8 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     holdSheet,
     closeSheet,
     approveSheet,
+    exportTimeSheet,
+    fetchEmployeeOptions,
     fetchEmployeeTasks,
   }
 })

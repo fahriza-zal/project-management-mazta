@@ -16,12 +16,15 @@ import {
   ChevronDownIcon,
   CheckCircleIcon,
   UserIcon,
+  ArrowDownTrayIcon,
+  EnvelopeIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
 import BaseDatePicker from '@/shared/components/base/BaseDatePicker.vue'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
+import BaseMultiSelect from '@/shared/components/base/BaseMultiSelect.vue'
 import BaseModal from '@/shared/components/base/BaseModal.vue'
 import BaseTextarea from '@/shared/components/base/BaseTextarea.vue'
 import BasePagination from '@/shared/components/base/BasePagination.vue'
@@ -51,9 +54,13 @@ const childrenIds = computed(() =>
 )
 const hasApproval = computed(() => childrenIds.value.length > 0)
 
-// Active tab: 'own' (my timesheet) | 'approval' (subordinates' timesheets).
+// Active tab: 'own' (my timesheet) | 'approval' (subordinates' timesheets) |
+// 'export' (async export request form).
 const tab = ref('own')
 const isOwnTab = computed(() => tab.value === 'own')
+const isExportTab = computed(() => tab.value === 'export')
+// The Export tab is gated by permission (like the other actions).
+const canExport = computed(() => auth.can(PERM.EXPORT))
 
 /** Today as a local `'yyyy-MM-dd'` string (matches BaseDatePicker's model type). */
 function todayStr() {
@@ -346,7 +353,8 @@ function switchTab(key) {
   if (tab.value === key) return
   tab.value = key
   page.value = 1
-  load()
+  // The Export tab is a form, not a list — nothing to fetch.
+  if (key !== 'export') load()
 }
 
 function onSearch() {
@@ -508,6 +516,48 @@ async function confirmApprove() {
   }
 }
 
+/* --- Export (Export tab) --- */
+// Optional inclusive work-date bounds ('' = unbounded) + the recipient email the
+// backend sends the generated file to + an optional set of employees to scope the
+// export to (empty = all). `exportResult` holds the last acknowledgement
+// { detail, estimatedSeconds, requestId, timeSheetCount }.
+const exportDateFrom = ref('')
+const exportDateTo = ref('')
+const exportEmail = ref('')
+const exportEmployeeIds = ref([])
+const exportSubmitting = ref(false)
+const exportResult = ref(null)
+
+const emailValid = computed(() => /^\S+@\S+\.\S+$/.test(exportEmail.value.trim()))
+
+/** Server-side employee search for the export multi-select ({ id, name }). */
+function fetchEmployeeOptions(term) {
+  return store.fetchEmployeeOptions(term)
+}
+
+async function submitExport() {
+  const email = exportEmail.value.trim()
+  if (!emailValid.value) {
+    toastError('Masukkan email tujuan yang valid.')
+    return
+  }
+  exportSubmitting.value = true
+  try {
+    const res = await store.exportTimeSheet({
+      dateFrom: exportDateFrom.value || null,
+      dateTo: exportDateTo.value || null,
+      email,
+      employeeIds: exportEmployeeIds.value,
+    })
+    exportResult.value = res
+    success(res?.detail || `Permintaan export dikirim. Hasil akan dikirim ke ${email}.`)
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    exportSubmitting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -521,7 +571,8 @@ onMounted(load)
           <span v-if="isOwnTab && employeeName"
             >Timesheet milik <strong>{{ employeeName }}</strong></span
           >
-          <span v-else-if="!isOwnTab">Timesheet tim yang Anda bawahi untuk ditinjau.</span>
+          <span v-else-if="tab === 'approval'">Timesheet tim yang Anda bawahi untuk ditinjau.</span>
+          <span v-else-if="isExportTab">Export timesheet ke file dan kirim ke email.</span>
         </p>
       </div>
       <BaseButton v-if="isOwnTab && auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
@@ -530,13 +581,16 @@ onMounted(load)
       </BaseButton>
     </div>
 
-    <!-- Tabs: my timesheet vs approval (subordinates) -->
-    <div v-if="hasApproval" class="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+    <!-- Tabs: my timesheet · approval (subordinates) · export -->
+    <div
+      v-if="hasApproval || canExport"
+      class="inline-flex rounded-xl border border-slate-200 bg-white p-1"
+    >
       <button
         type="button"
         class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition"
         :class="
-          isOwnTab
+          tab === 'own'
             ? 'bg-brand text-white shadow-glow'
             : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
         "
@@ -546,10 +600,11 @@ onMounted(load)
         Timesheet Saya
       </button>
       <button
+        v-if="hasApproval"
         type="button"
         class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition"
         :class="
-          !isOwnTab
+          tab === 'approval'
             ? 'bg-brand text-white shadow-glow'
             : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
         "
@@ -558,424 +613,526 @@ onMounted(load)
         <CheckCircleIcon class="h-4 w-4" />
         Approval Team
       </button>
-    </div>
-
-    <!-- Summary tiles -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <BaseCard>
-        <p class="text-caption">Total waktu</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-slate-800">
-          {{ formatDuration(totalSeconds) }}
-        </p>
-      </BaseCard>
-      <BaseCard>
-        <p class="text-caption">Running</p>
-        <p class="mt-1 text-2xl font-bold text-success">{{ summary.running }}</p>
-      </BaseCard>
-      <BaseCard>
-        <p class="text-caption">On hold</p>
-        <p class="mt-1 text-2xl font-bold text-warning">{{ summary.hold }}</p>
-      </BaseCard>
-      <BaseCard>
-        <p class="text-caption">Closed</p>
-        <p class="mt-1 text-2xl font-bold text-slate-500">{{ summary.closed }}</p>
-      </BaseCard>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <div class="w-full sm:max-w-xs">
-        <BaseInput v-model="search" placeholder="Cari timesheet…" @update:model-value="onSearch">
-          <template #prefix><MagnifyingGlassIcon class="h-4 w-4" /></template>
-        </BaseInput>
-      </div>
-      <!-- Work-date range filter (workDateGte / workDateLte) -->
-      <div class="w-full sm:w-40">
-        <BaseDatePicker
-          v-model="workDateGte"
-          label="Dari tanggal"
-          placeholder="Mulai"
-          @update:model-value="onDateFilter"
-        />
-      </div>
-      <div class="w-full sm:w-40">
-        <BaseDatePicker
-          v-model="workDateLte"
-          label="Sampai tanggal"
-          placeholder="Selesai"
-          @update:model-value="onDateFilter"
-        />
-      </div>
-      <BaseButton
-        v-if="hasDateFilter"
-        variant="outline"
-        size="sm"
+      <button
+        v-if="canExport"
         type="button"
-        @click="clearDateFilter"
+        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition"
+        :class="
+          tab === 'export'
+            ? 'bg-brand text-white shadow-glow'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+        "
+        @click="switchTab('export')"
       >
-        Reset tanggal
-      </BaseButton>
+        <ArrowDownTrayIcon class="h-4 w-4" />
+        Export Timesheet
+      </button>
     </div>
 
-    <!-- Content -->
-    <div v-if="loading" class="surface px-4 py-16 text-center text-sm text-slate-400">Loading…</div>
-
-    <BaseEmpty
-      v-else-if="!items.length"
-      :icon="ClockIcon"
-      :title="isOwnTab ? 'Belum ada timesheet' : 'Belum ada timesheet tim'"
-      :description="
-        isOwnTab
-          ? 'Buat timesheet untuk mulai mencatat pekerjaan Anda pada sebuah task.'
-          : 'Timesheet dari anggota tim yang Anda bawahi akan muncul di sini.'
-      "
-    >
-      <template v-if="isOwnTab" #action>
-        <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
-          <PlusIcon class="h-4 w-4" /> Buat Timesheet
-        </BaseButton>
-      </template>
-    </BaseEmpty>
-
-    <template v-else>
-      <!-- Active (running / on hold) -->
-      <section v-if="activeItems.length" class="space-y-2">
-        <p class="text-caption px-1">Sedang berjalan</p>
-        <div class="overflow-hidden rounded-2xl border border-primary-200/70 bg-primary-50/40">
-          <ul class="divide-y divide-primary-100/70">
-            <li v-for="row in activeItems" :key="row.id">
-              <div
-                class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
-              >
-                <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
-                  <span
-                    class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0"
-                    :class="dotClass(stateOf(row))"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex min-w-0 flex-wrap items-center gap-2">
-                      <span class="max-w-full truncate font-semibold text-slate-800">
-                        {{ row.task?.title || 'Untitled task' }}
-                      </span>
-                      <BaseBadge :color="stateMeta(row).color" size="sm" dot>
-                        {{ statusLabel(row) }}
-                      </BaseBadge>
-                      <BaseBadge v-if="!isOwnTab && row.employee" color="primary" size="sm">
-                        <UserIcon class="h-3 w-3" />
-                        {{ row.employee.fullName }}
-                      </BaseBadge>
-                    </div>
-                    <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
-                      <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
-                      {{ row.project?.name || 'Common task' }}
-                    </p>
-                    <p
-                      v-if="row.startTime || row.endTime"
-                      class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
-                    >
-                      <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
-                      <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
-                    </p>
-                  </div>
-                </div>
-                <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
-                <div
-                  class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
-                >
-                  <!-- While running, count up live from startTime (recomputed on
-                       every tick, so it stays correct even after closing the tab). -->
-                  <span
-                    v-if="stateOf(row) === 'running'"
-                    class="flex min-w-0 flex-col items-end leading-tight text-success"
-                  >
-                    <span class="flex items-center gap-1.5 text-xl font-bold tabular-nums">
-                      <ClockIcon class="h-5 w-5 shrink-0 animate-tick" />
-                      {{ formatDuration(liveSeconds(row)) }}
-                    </span>
-                    <span v-if="row.startTime" class="truncate text-[11px] font-medium opacity-80">
-                      Berjalan sejak {{ formatDateTime(row.startTime) }}
-                    </span>
-                  </span>
-                  <span v-else class="text-xl font-bold tabular-nums text-slate-800">
-                    {{ formatDuration(row.seconds) }}
-                  </span>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <BaseButton
-                      v-if="canStart(row)"
-                      variant="primary"
-                      size="sm"
-                      @click="openAction(row, 'start')"
-                    >
-                      <PlayIcon class="h-4 w-4" /> Start
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canHold(row)"
-                      variant="outline"
-                      size="sm"
-                      @click="openAction(row, 'hold')"
-                    >
-                      <PauseIcon class="h-4 w-4" /> Hold
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canClose(row)"
-                      variant="outline"
-                      size="sm"
-                      @click="openAction(row, 'close')"
-                    >
-                      <StopIcon class="h-4 w-4" /> Close
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canApprove(row)"
-                      variant="primary"
-                      size="sm"
-                      @click="openApprove(row)"
-                    >
-                      <CheckCircleIcon class="h-4 w-4" /> Approve
-                    </BaseButton>
-                    <BaseBadge
-                      v-else-if="!isOwnTab && isApproved(row)"
-                      color="success"
-                      size="sm"
-                      dot
-                      :title="
-                        approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
-                      "
-                    >
-                      Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
-                    </BaseBadge>
-                    <button
-                      class="rounded-lg p-2 text-slate-400 hover:bg-white/70 hover:text-slate-600"
-                      :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
-                      @click="toggleExpand(row.id)"
-                    >
-                      <ChevronDownIcon
-                        class="h-4 w-4 transition-transform"
-                        :class="expanded[row.id] ? 'rotate-180' : ''"
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Activity timeline -->
-              <div
-                v-if="expanded[row.id]"
-                class="border-t border-primary-100/70 bg-white/50 px-4 py-3"
-              >
-                <ol v-if="row.activities?.length" class="space-y-2">
-                  <li v-for="a in row.activities" :key="a.id" class="flex gap-2 text-xs">
-                    <span
-                      class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                      :class="dotClass(classify(a.status))"
-                    />
-                    <div class="min-w-0 flex-1">
-                      <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                        <span
-                          v-if="a.totalTime != null && Number(a.totalTime) !== 0"
-                          class="font-bold tabular-nums text-slate-600"
-                        >
-                          <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
-                            formatDuration(a.totalTime)
-                          }}
-                        </span>
-                      </div>
-                      <div
-                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
-                      >
-                        <span v-if="a.description" class="font-bold text-slate-500">{{
-                          a.description
-                        }}</span>
-                        <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
-                      </div>
-                    </div>
-                  </li>
-                </ol>
-                <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <!-- Grouped by day -->
-      <section v-for="g in restGroups" :key="g.key" class="space-y-2">
-        <div class="flex items-center justify-between px-1">
-          <p class="text-caption">{{ g.label }}</p>
-          <p class="text-caption tabular-nums">{{ formatDuration(g.seconds) }}</p>
-        </div>
-        <BaseCard :padded="false">
-          <ul class="divide-y divide-slate-100">
-            <li
-              v-for="row in g.rows"
-              :key="row.id"
-              :class="isClosed(row) ? 'border-l-2 border-emerald-400 bg-emerald-50/40' : ''"
+    <!-- Export tab: async export request form -->
+    <template v-if="isExportTab">
+      <BaseCard>
+        <div class="max-w-xl space-y-5">
+          <div>
+            <h2 class="text-base font-semibold text-slate-800">Export Timesheet</h2>
+            <p class="text-body mt-1">
+              Pilih rentang tanggal lalu masukkan email tujuan. File hasil export diproses di latar
+              belakang dan dikirim ke email tersebut setelah selesai.
+            </p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <BaseDatePicker
+              v-model="exportDateFrom"
+              label="Dari tanggal"
+              placeholder="Awal (opsional)"
+            />
+            <BaseDatePicker
+              v-model="exportDateTo"
+              label="Sampai tanggal"
+              placeholder="Akhir (opsional)"
+            />
+          </div>
+          <BaseMultiSelect
+            v-model="exportEmployeeIds"
+            :fetcher="fetchEmployeeOptions"
+            label="Karyawan (opsional)"
+            placeholder="Cari & pilih karyawan…"
+            empty-text="Karyawan tidak ditemukan."
+          />
+          <BaseInput
+            v-model="exportEmail"
+            type="email"
+            label="Email tujuan"
+            placeholder="nama@perusahaan.com"
+            required
+            hint="Kosongkan tanggal & karyawan untuk mengekspor seluruh timesheet."
+          >
+            <template #prefix><EnvelopeIcon class="h-4 w-4" /></template>
+          </BaseInput>
+          <div class="flex justify-end">
+            <BaseButton
+              variant="primary"
+              :loading="exportSubmitting"
+              :disabled="!emailValid"
+              @click="submitExport"
             >
-              <div
-                class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2"
-              >
-                <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
-                  <CheckCircleIcon
-                    v-if="isClosed(row)"
-                    class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500 sm:mt-0"
-                  />
-                  <span
-                    v-else
-                    class="mt-1.5 h-2 w-2 shrink-0 rounded-full sm:mt-0"
-                    :class="dotClass(stateOf(row))"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex min-w-0 flex-wrap items-center gap-2">
-                      <span
-                        class="max-w-full truncate font-medium"
-                        :class="isClosed(row) ? 'text-slate-500' : 'text-slate-800'"
-                      >
-                        {{ row.task?.title || 'Untitled task' }}
-                      </span>
-                      <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
-                        {{ typeLabel(row) }}
-                      </BaseBadge>
-                      <BaseBadge v-if="isClosed(row)" color="success" size="sm" dot
-                        >Selesai</BaseBadge
-                      >
-                      <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
-                        <UserIcon class="h-3 w-3" />
-                        {{ row.employee.fullName }}
-                      </BaseBadge>
-                    </div>
-                    <p class="mt-0.5 truncate text-xs text-slate-400">
-                      <span v-if="row.project">{{ row.project.name }}</span>
-                      <span v-if="!isClosed(row)"
-                        ><span v-if="row.project"> · </span>{{ statusLabel(row) }}</span
-                      >
-                    </p>
-                    <p
-                      v-if="row.startTime || row.endTime"
-                      class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
-                    >
-                      <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
-                      <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
-                    </p>
-                  </div>
-                </div>
-                <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
-                <div
-                  class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
-                >
-                  <span
-                    class="text-sm font-semibold tabular-nums"
-                    :class="isClosed(row) ? 'text-emerald-600' : 'text-slate-700'"
-                  >
-                    {{ formatDuration(row.seconds) }}
-                  </span>
-                  <div class="flex flex-wrap items-center gap-1">
-                    <BaseButton
-                      v-if="canStart(row)"
-                      variant="primary"
-                      size="sm"
-                      @click="openAction(row, 'start')"
-                    >
-                      <PlayIcon class="h-4 w-4" /> Start
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canHold(row)"
-                      variant="outline"
-                      size="sm"
-                      @click="openAction(row, 'hold')"
-                    >
-                      <PauseIcon class="h-4 w-4" /> Hold
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canClose(row)"
-                      variant="outline"
-                      size="sm"
-                      @click="openAction(row, 'close')"
-                    >
-                      <StopIcon class="h-4 w-4" /> Close
-                    </BaseButton>
-                    <BaseButton
-                      v-if="canApprove(row)"
-                      variant="primary"
-                      size="sm"
-                      @click="openApprove(row)"
-                    >
-                      <CheckCircleIcon class="h-4 w-4" /> Approve
-                    </BaseButton>
-                    <BaseBadge
-                      v-else-if="!isOwnTab && isApproved(row)"
-                      color="success"
-                      size="sm"
-                      dot
-                      :title="
-                        approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
-                      "
-                    >
-                      Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
-                    </BaseBadge>
-                    <button
-                      class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                      :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
-                      @click="toggleExpand(row.id)"
-                    >
-                      <ChevronDownIcon
-                        class="h-4 w-4 transition-transform"
-                        :class="expanded[row.id] ? 'rotate-180' : ''"
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ArrowDownTrayIcon class="h-4 w-4" /> Export &amp; Kirim ke Email
+            </BaseButton>
+          </div>
+        </div>
+      </BaseCard>
 
-              <!-- Activity timeline -->
-              <div
-                v-if="expanded[row.id]"
-                class="border-t border-slate-100 bg-slate-50/60 px-4 py-3"
-              >
-                <ol v-if="row.activities?.length" class="space-y-2">
-                  <li v-for="a in row.activities" :key="a.id" class="flex gap-2 text-xs">
-                    <span
-                      class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                      :class="dotClass(classify(a.status))"
-                    />
-                    <div class="min-w-0 flex-1">
-                      <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
-                        <span
-                          v-if="a.totalTime != null && Number(a.totalTime) !== 0"
-                          class="font-bold tabular-nums text-slate-600"
-                        >
-                          <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
-                            formatDuration(a.totalTime)
-                          }}
-                        </span>
-                      </div>
-                      <div
-                        class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
-                      >
-                        <span v-if="a.description" class="font-bold text-slate-500">{{
-                          a.description
-                        }}</span>
-                        <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
-                      </div>
-                    </div>
-                  </li>
-                </ol>
-                <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
-              </div>
-            </li>
-          </ul>
-        </BaseCard>
-      </section>
+      <!-- Last export acknowledgement -->
+      <BaseCard v-if="exportResult" class="max-w-xl border-emerald-200 bg-emerald-50/50">
+        <div class="flex items-start gap-3">
+          <CheckCircleIcon class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+          <div class="min-w-0 flex-1 space-y-2">
+            <p class="text-sm font-semibold text-emerald-700">
+              {{ exportResult.detail || 'Permintaan export diterima.' }}
+            </p>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span v-if="exportResult.timeSheetCount != null">
+                <strong class="text-slate-700">{{ exportResult.timeSheetCount }}</strong> timesheet
+              </span>
+              <span v-if="exportResult.estimatedSeconds != null">
+                Estimasi proses:
+                <strong class="text-slate-700">{{
+                  formatDuration(exportResult.estimatedSeconds)
+                }}</strong>
+              </span>
+              <span v-if="exportResult.requestId">
+                Request ID:
+                <strong class="font-mono text-slate-700">{{ exportResult.requestId }}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      </BaseCard>
     </template>
 
-    <!-- Pagination -->
-    <BasePagination
-      v-if="pagination.count > PAGE_SIZE"
-      :model-value="page"
-      :total="pagination.count"
-      :page-size="PAGE_SIZE"
-      @update:model-value="onPageChange"
-    />
+    <!-- Summary tiles -->
+    <template v-else>
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <BaseCard>
+          <p class="text-caption">Total waktu</p>
+          <p class="mt-1 text-2xl font-bold tabular-nums text-slate-800">
+            {{ formatDuration(totalSeconds) }}
+          </p>
+        </BaseCard>
+        <BaseCard>
+          <p class="text-caption">Running</p>
+          <p class="mt-1 text-2xl font-bold text-success">{{ summary.running }}</p>
+        </BaseCard>
+        <BaseCard>
+          <p class="text-caption">On hold</p>
+          <p class="mt-1 text-2xl font-bold text-warning">{{ summary.hold }}</p>
+        </BaseCard>
+        <BaseCard>
+          <p class="text-caption">Closed</p>
+          <p class="mt-1 text-2xl font-bold text-slate-500">{{ summary.closed }}</p>
+        </BaseCard>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div class="w-full sm:max-w-xs">
+          <BaseInput v-model="search" placeholder="Cari timesheet…" @update:model-value="onSearch">
+            <template #prefix><MagnifyingGlassIcon class="h-4 w-4" /></template>
+          </BaseInput>
+        </div>
+        <!-- Work-date range filter (workDateGte / workDateLte) -->
+        <div class="w-full sm:w-40">
+          <BaseDatePicker
+            v-model="workDateGte"
+            label="Dari tanggal"
+            placeholder="Mulai"
+            @update:model-value="onDateFilter"
+          />
+        </div>
+        <div class="w-full sm:w-40">
+          <BaseDatePicker
+            v-model="workDateLte"
+            label="Sampai tanggal"
+            placeholder="Selesai"
+            @update:model-value="onDateFilter"
+          />
+        </div>
+        <BaseButton
+          v-if="hasDateFilter"
+          variant="outline"
+          size="sm"
+          type="button"
+          @click="clearDateFilter"
+        >
+          Reset tanggal
+        </BaseButton>
+      </div>
+
+      <!-- Content -->
+      <div v-if="loading" class="surface px-4 py-16 text-center text-sm text-slate-400">
+        Loading…
+      </div>
+
+      <BaseEmpty
+        v-else-if="!items.length"
+        :icon="ClockIcon"
+        :title="isOwnTab ? 'Belum ada timesheet' : 'Belum ada timesheet tim'"
+        :description="
+          isOwnTab
+            ? 'Buat timesheet untuk mulai mencatat pekerjaan Anda pada sebuah task.'
+            : 'Timesheet dari anggota tim yang Anda bawahi akan muncul di sini.'
+        "
+      >
+        <template v-if="isOwnTab" #action>
+          <BaseButton v-if="auth.can(PERM.CREATE)" variant="primary" @click="openCreate">
+            <PlusIcon class="h-4 w-4" /> Buat Timesheet
+          </BaseButton>
+        </template>
+      </BaseEmpty>
+
+      <template v-else>
+        <!-- Active (running / on hold) -->
+        <section v-if="activeItems.length" class="space-y-2">
+          <p class="text-caption px-1">Sedang berjalan</p>
+          <div class="overflow-hidden rounded-2xl border border-primary-200/70 bg-primary-50/40">
+            <ul class="divide-y divide-primary-100/70">
+              <li v-for="row in activeItems" :key="row.id">
+                <div
+                  class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
+                >
+                  <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
+                    <span
+                      class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-0"
+                      :class="dotClass(stateOf(row))"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span class="max-w-full truncate font-semibold text-slate-800">
+                          {{ row.task?.title || 'Untitled task' }}
+                        </span>
+                        <BaseBadge :color="stateMeta(row).color" size="sm" dot>
+                          {{ statusLabel(row) }}
+                        </BaseBadge>
+                        <BaseBadge v-if="!isOwnTab && row.employee" color="primary" size="sm">
+                          <UserIcon class="h-3 w-3" />
+                          {{ row.employee.fullName }}
+                        </BaseBadge>
+                      </div>
+                      <p class="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
+                        <FolderIcon v-if="row.project" class="h-3.5 w-3.5" />
+                        {{ row.project?.name || 'Common task' }}
+                      </p>
+                      <p
+                        v-if="row.startTime || row.endTime"
+                        class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
+                      >
+                        <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
+                        <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
+                  >
+                    <!-- While running, count up live from startTime (recomputed on
+                       every tick, so it stays correct even after closing the tab). -->
+                    <span
+                      v-if="stateOf(row) === 'running'"
+                      class="flex min-w-0 flex-col items-end leading-tight text-success"
+                    >
+                      <span class="flex items-center gap-1.5 text-xl font-bold tabular-nums">
+                        <ClockIcon class="h-5 w-5 shrink-0 animate-tick" />
+                        {{ formatDuration(liveSeconds(row)) }}
+                      </span>
+                      <span
+                        v-if="row.startTime"
+                        class="truncate text-[11px] font-medium opacity-80"
+                      >
+                        Berjalan sejak {{ formatDateTime(row.startTime) }}
+                      </span>
+                    </span>
+                    <span v-else class="text-xl font-bold tabular-nums text-slate-800">
+                      {{ formatDuration(row.seconds) }}
+                    </span>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <BaseButton
+                        v-if="canStart(row)"
+                        variant="primary"
+                        size="sm"
+                        @click="openAction(row, 'start')"
+                      >
+                        <PlayIcon class="h-4 w-4" /> Start
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canHold(row)"
+                        variant="outline"
+                        size="sm"
+                        @click="openAction(row, 'hold')"
+                      >
+                        <PauseIcon class="h-4 w-4" /> Hold
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canClose(row)"
+                        variant="outline"
+                        size="sm"
+                        @click="openAction(row, 'close')"
+                      >
+                        <StopIcon class="h-4 w-4" /> Close
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canApprove(row)"
+                        variant="primary"
+                        size="sm"
+                        @click="openApprove(row)"
+                      >
+                        <CheckCircleIcon class="h-4 w-4" /> Approve
+                      </BaseButton>
+                      <BaseBadge
+                        v-else-if="!isOwnTab && isApproved(row)"
+                        color="success"
+                        size="sm"
+                        dot
+                        :title="
+                          approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
+                        "
+                      >
+                        Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                      </BaseBadge>
+                      <button
+                        class="rounded-lg p-2 text-slate-400 hover:bg-white/70 hover:text-slate-600"
+                        :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
+                        @click="toggleExpand(row.id)"
+                      >
+                        <ChevronDownIcon
+                          class="h-4 w-4 transition-transform"
+                          :class="expanded[row.id] ? 'rotate-180' : ''"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Activity timeline -->
+                <div
+                  v-if="expanded[row.id]"
+                  class="border-t border-primary-100/70 bg-white/50 px-4 py-3"
+                >
+                  <ol v-if="row.activities?.length" class="space-y-2">
+                    <li v-for="a in row.activities" :key="a.id" class="flex gap-2 text-xs">
+                      <span
+                        class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                        :class="dotClass(classify(a.status))"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
+                          <span
+                            v-if="a.totalTime != null && Number(a.totalTime) !== 0"
+                            class="font-bold tabular-nums text-slate-600"
+                          >
+                            <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
+                              formatDuration(a.totalTime)
+                            }}
+                          </span>
+                        </div>
+                        <div
+                          class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
+                        >
+                          <span v-if="a.description" class="font-bold text-slate-500">{{
+                            a.description
+                          }}</span>
+                          <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
+                        </div>
+                      </div>
+                    </li>
+                  </ol>
+                  <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Grouped by day -->
+        <section v-for="g in restGroups" :key="g.key" class="space-y-2">
+          <div class="flex items-center justify-between px-1">
+            <p class="text-caption">{{ g.label }}</p>
+            <p class="text-caption tabular-nums">{{ formatDuration(g.seconds) }}</p>
+          </div>
+          <BaseCard :padded="false">
+            <ul class="divide-y divide-slate-100">
+              <li
+                v-for="row in g.rows"
+                :key="row.id"
+                :class="isClosed(row) ? 'border-l-2 border-emerald-400 bg-emerald-50/40' : ''"
+              >
+                <div
+                  class="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2"
+                >
+                  <div class="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
+                    <CheckCircleIcon
+                      v-if="isClosed(row)"
+                      class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500 sm:mt-0"
+                    />
+                    <span
+                      v-else
+                      class="mt-1.5 h-2 w-2 shrink-0 rounded-full sm:mt-0"
+                      :class="dotClass(stateOf(row))"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <span
+                          class="max-w-full truncate font-medium"
+                          :class="isClosed(row) ? 'text-slate-500' : 'text-slate-800'"
+                        >
+                          {{ row.task?.title || 'Untitled task' }}
+                        </span>
+                        <BaseBadge :color="row.project ? 'primary' : 'slate'" size="sm">
+                          {{ typeLabel(row) }}
+                        </BaseBadge>
+                        <BaseBadge v-if="isClosed(row)" color="success" size="sm" dot
+                          >Selesai</BaseBadge
+                        >
+                        <BaseBadge v-if="!isOwnTab && row.employee" color="info" size="sm">
+                          <UserIcon class="h-3 w-3" />
+                          {{ row.employee.fullName }}
+                        </BaseBadge>
+                      </div>
+                      <p class="mt-0.5 truncate text-xs text-slate-400">
+                        <span v-if="row.project">{{ row.project.name }}</span>
+                        <span v-if="!isClosed(row)"
+                          ><span v-if="row.project"> · </span>{{ statusLabel(row) }}</span
+                        >
+                      </p>
+                      <p
+                        v-if="row.startTime || row.endTime"
+                        class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
+                      >
+                        <span v-if="row.startTime">Mulai: {{ formatDateTime(row.startTime) }}</span>
+                        <span v-if="row.endTime">Selesai: {{ formatDateTime(row.endTime) }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <!-- Duration + lifecycle actions: full-width row on mobile, inline on desktop. -->
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3"
+                  >
+                    <span
+                      class="text-sm font-semibold tabular-nums"
+                      :class="isClosed(row) ? 'text-emerald-600' : 'text-slate-700'"
+                    >
+                      {{ formatDuration(row.seconds) }}
+                    </span>
+                    <div class="flex flex-wrap items-center gap-1">
+                      <BaseButton
+                        v-if="canStart(row)"
+                        variant="primary"
+                        size="sm"
+                        @click="openAction(row, 'start')"
+                      >
+                        <PlayIcon class="h-4 w-4" /> Start
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canHold(row)"
+                        variant="outline"
+                        size="sm"
+                        @click="openAction(row, 'hold')"
+                      >
+                        <PauseIcon class="h-4 w-4" /> Hold
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canClose(row)"
+                        variant="outline"
+                        size="sm"
+                        @click="openAction(row, 'close')"
+                      >
+                        <StopIcon class="h-4 w-4" /> Close
+                      </BaseButton>
+                      <BaseButton
+                        v-if="canApprove(row)"
+                        variant="primary"
+                        size="sm"
+                        @click="openApprove(row)"
+                      >
+                        <CheckCircleIcon class="h-4 w-4" /> Approve
+                      </BaseButton>
+                      <BaseBadge
+                        v-else-if="!isOwnTab && isApproved(row)"
+                        color="success"
+                        size="sm"
+                        dot
+                        :title="
+                          approverLabel(row) ? `Disetujui oleh ${approverLabel(row)}` : undefined
+                        "
+                      >
+                        Disetujui<span v-if="approverLabel(row)"> · {{ approverLabel(row) }}</span>
+                      </BaseBadge>
+                      <button
+                        class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        :title="expanded[row.id] ? 'Sembunyikan aktivitas' : 'Lihat aktivitas'"
+                        @click="toggleExpand(row.id)"
+                      >
+                        <ChevronDownIcon
+                          class="h-4 w-4 transition-transform"
+                          :class="expanded[row.id] ? 'rotate-180' : ''"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Activity timeline -->
+                <div
+                  v-if="expanded[row.id]"
+                  class="border-t border-slate-100 bg-slate-50/60 px-4 py-3"
+                >
+                  <ol v-if="row.activities?.length" class="space-y-2">
+                    <li v-for="a in row.activities" :key="a.id" class="flex gap-2 text-xs">
+                      <span
+                        class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                        :class="dotClass(classify(a.status))"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span class="font-medium text-slate-600">{{ humanize(a.status) }}</span>
+                          <span
+                            v-if="a.totalTime != null && Number(a.totalTime) !== 0"
+                            class="font-bold tabular-nums text-slate-600"
+                          >
+                            <ClockIcon class="mr-0.5 inline h-3 w-3 align-text-bottom" />{{
+                              formatDuration(a.totalTime)
+                            }}
+                          </span>
+                        </div>
+                        <div
+                          class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400"
+                        >
+                          <span v-if="a.description" class="font-bold text-slate-500">{{
+                            a.description
+                          }}</span>
+                          <span v-if="a.updatedAt">{{ formatDateTime(a.updatedAt) }}</span>
+                        </div>
+                      </div>
+                    </li>
+                  </ol>
+                  <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
+                </div>
+              </li>
+            </ul>
+          </BaseCard>
+        </section>
+      </template>
+
+      <!-- Pagination -->
+      <BasePagination
+        v-if="pagination.count > PAGE_SIZE"
+        :model-value="page"
+        :total="pagination.count"
+        :page-size="PAGE_SIZE"
+        @update:model-value="onPageChange"
+      />
+    </template>
 
     <!-- Create -->
     <TimesheetCreateModal v-model="modalOpen" @created="onCreated" />

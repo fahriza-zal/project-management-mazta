@@ -556,8 +556,10 @@ export const useProjectStore = defineStore('project', () => {
 
   /**
    * Fetch choice options for an enum group via `employeeChoices(group)`. Returns
-   * string[] of canonical values. The field may return either `[{ label, value }]`
-   * or a plain string array, so we normalize to the value in both cases.
+   * string[] of the values the backend accepts on write. The field returns
+   * `[{ label, value }]` where `label` is the canonical enum the mutations expect
+   * (NOT the lowercase `value`, which is display-only) — so we normalize to `label`.
+   * Falls back to the raw item when the API returns a plain string array.
    */
   async function fetchChoices(group) {
     const { data } = await apolloClient.query({
@@ -565,7 +567,7 @@ export const useProjectStore = defineStore('project', () => {
       variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.employeeChoices ?? []).map((c) => (c && typeof c === 'object' ? c.value : c))
+    return (data?.employeeChoices ?? []).map((c) => (c && typeof c === 'object' ? c.label : c))
   }
 
   return {

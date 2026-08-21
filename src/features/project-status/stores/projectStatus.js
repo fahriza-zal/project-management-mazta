@@ -226,7 +226,7 @@ export const useProjectStatusStore = defineStore('projectStatus', () => {
       variables: { group },
       fetchPolicy: 'cache-first',
     })
-    return (data?.employeeChoices ?? []).map((c) => (c && typeof c === 'object' ? c.value : c))
+    return (data?.employeeChoices ?? []).map((c) => (c && typeof c === 'object' ? c.label : c))
   }
 
   /** Searchable unit options for the picker. Returns [{ id, name }]. */

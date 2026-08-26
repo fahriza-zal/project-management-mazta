@@ -249,6 +249,10 @@ export const GET_PROJECT_DETAIL = gql`
           isCounted
           status
           progress
+          dependsOn {
+            id
+            name
+          }
           metric {
             actualSeconds
             averageCycleTime

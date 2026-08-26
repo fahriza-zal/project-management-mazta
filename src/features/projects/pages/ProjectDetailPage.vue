@@ -24,6 +24,7 @@ import {
   ArrowPathIcon,
   ArrowTrendingUpIcon,
   ArrowsRightLeftIcon,
+  ArrowRightIcon,
   CalendarDaysIcon,
 } from '@heroicons/vue/24/outline'
 import BaseBadge from '@/shared/components/base/BaseBadge.vue'
@@ -228,6 +229,24 @@ const milestoneAssignees = (m) => {
   }
   return out
 }
+
+// ── Milestone dependencies ───────────────────────────────────────────────────
+// `dependsOn` only carries { id, name }; resolve each to the full milestone in
+// this project so we can read its completion state (a milestone is "done" when
+// all its tasks are closed — see isMilestoneDone).
+const resolveDep = (dep) => milestones.value.find((m) => Number(m.id) === Number(dep.id)) || null
+const isDepDone = (dep) => {
+  const full = resolveDep(dep)
+  return full ? isMilestoneDone(full) : false
+}
+
+/**
+ * A milestone is "blocked" when it has dependencies and at least one of them is
+ * not yet finished — it cannot start until those are done. Once every dependency
+ * is done (or it has none) it is unblocked / ready.
+ */
+const isMilestoneBlocked = (m) => !!(m?.dependsOn?.length && m.dependsOn.some((d) => !isDepDone(d)))
+const pendingDeps = (m) => (m?.dependsOn ?? []).filter((d) => !isDepDone(d))
 
 // Expand/collapse a task's activity history (collapsed by default).
 const activityOpen = ref({})
@@ -568,7 +587,39 @@ onMounted(async () => {
                       <FlagIcon class="h-4 w-4 shrink-0 text-primary-500" />
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold text-slate-800">{{ m.name }}</p>
-                        <p class="text-caption">{{ m.tasks?.length || 0 }} tasks</p>
+                        <p class="text-caption flex items-center gap-1.5">
+                          <span>{{ m.tasks?.length || 0 }} tasks</span>
+                          <span
+                            v-if="m.dependsOn?.length"
+                            class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                            :class="
+                              isMilestoneBlocked(m)
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            "
+                            :title="
+                              (isMilestoneBlocked(m)
+                                ? 'Menunggu: ' +
+                                  pendingDeps(m)
+                                    .map((d) => d.name)
+                                    .join(', ')
+                                : 'Prasyarat selesai — ') +
+                              'Bergantung pada: ' +
+                              m.dependsOn.map((d) => d.name).join(', ')
+                            "
+                          >
+                            <LockClosedIcon v-if="isMilestoneBlocked(m)" class="h-3 w-3" />
+                            <ArrowsRightLeftIcon v-else class="h-3 w-3" />
+                            <span class="max-w-[16rem] truncate">{{
+                              isMilestoneBlocked(m)
+                                ? 'Menunggu ' +
+                                  pendingDeps(m)
+                                    .map((d) => d.name)
+                                    .join(', ')
+                                : 'Prasyarat siap'
+                            }}</span>
+                          </span>
+                        </p>
                       </div>
 
                       <!-- Assignees preview — visible even when collapsed -->
@@ -624,6 +675,69 @@ onMounted(async () => {
                     <!-- Tasks -->
                     <div v-if="isMilestoneOpen(m.id)" class="space-y-2.5 px-4 pb-4">
                       <p v-if="m.description" class="text-xs text-slate-500">{{ m.description }}</p>
+
+                      <!-- Dependencies — milestones that must finish before this one starts. -->
+                      <div
+                        v-if="m.dependsOn?.length"
+                        class="rounded-xl border p-3"
+                        :class="
+                          isMilestoneBlocked(m)
+                            ? 'border-amber-200 bg-amber-50/70'
+                            : 'border-emerald-200 bg-emerald-50/70'
+                        "
+                      >
+                        <!-- Status line: waiting vs ready -->
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                            :class="
+                              isMilestoneBlocked(m)
+                                ? 'bg-amber-100 text-amber-600'
+                                : 'bg-emerald-100 text-emerald-600'
+                            "
+                          >
+                            <LockClosedIcon v-if="isMilestoneBlocked(m)" class="h-3.5 w-3.5" />
+                            <CheckCircleIcon v-else class="h-3.5 w-3.5" />
+                          </span>
+                          <p
+                            class="text-xs font-semibold"
+                            :class="isMilestoneBlocked(m) ? 'text-amber-700' : 'text-emerald-700'"
+                          >
+                            <template v-if="isMilestoneBlocked(m)">
+                              Menunggu penyelesaian {{ pendingDeps(m).length }} milestone sebelum
+                              bisa dimulai
+                            </template>
+                            <template v-else> Semua prasyarat selesai — siap dikerjakan </template>
+                          </p>
+                        </div>
+
+                        <!-- Dependency flow: each prerequisite → this milestone -->
+                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
+                          <template v-for="(dep, i) in m.dependsOn" :key="dep.id">
+                            <span v-if="i > 0" class="text-slate-300">·</span>
+                            <span
+                              class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium"
+                              :class="
+                                isDepDone(dep)
+                                  ? 'border-emerald-200 bg-white text-emerald-700'
+                                  : 'border-amber-200 bg-white text-amber-700'
+                              "
+                              :title="isDepDone(dep) ? 'Sudah selesai' : 'Belum selesai'"
+                            >
+                              <CheckCircleIcon v-if="isDepDone(dep)" class="h-3.5 w-3.5" />
+                              <ClockIcon v-else class="h-3.5 w-3.5" />
+                              {{ dep.name }}
+                            </span>
+                          </template>
+                          <ArrowRightIcon class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 font-semibold text-white"
+                          >
+                            <FlagIcon class="h-3 w-3" />
+                            {{ m.name }}
+                          </span>
+                        </div>
+                      </div>
 
                       <!-- Milestone metrics -->
                       <MilestoneMetricPanel v-if="m.metric" :metric="m.metric" />

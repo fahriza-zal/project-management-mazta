@@ -22,6 +22,9 @@ const props = defineProps({
   statusId: { type: [Number, String, null], default: null }, // column status
   statusName: { type: String, default: '' },
   milestones: { type: Array, default: () => [] }, // [{ id, name }]
+  // Next task order — `order` is required by TaskInput; the board computes it
+  // (existing task count + 1) so we don't surface it as a manual field.
+  order: { type: Number, default: 1 },
 })
 const emit = defineEmits(['update:modelValue', 'created'])
 
@@ -94,6 +97,8 @@ async function onSubmit() {
   if (!validate()) return
   saving.value = true
   try {
+    // TaskInput has no status field — the task is created with the backend's
+    // default status, then moved to the chosen column below.
     const input = {
       title: form.value.title.trim(),
       description: form.value.description.trim() || null,
@@ -102,7 +107,7 @@ async function onSubmit() {
       milestoneId: form.value.milestoneId ? Number(form.value.milestoneId) : null,
       parentId: null,
       taskType: form.value.taskType.trim() || null,
-      currentStatusId: props.statusId == null ? null : Number(props.statusId),
+      order: Number(props.order),
     }
     const created = await store.createTask(input)
     // Assign the chosen employees (one call per employee/task pair).
@@ -112,6 +117,20 @@ async function onSubmit() {
           store.createTaskAssignment({ employeeId, taskId: created.id }),
         ),
       )
+    }
+    // Best-effort: move the new task into the column it was created from. The
+    // board reload reflects the actual status if this doesn't apply.
+    if (created?.id && props.statusId != null) {
+      try {
+        await store.updateTaskStatus({
+          taskId: created.id,
+          newStatusId: Number(props.statusId),
+          oldStatusId: null,
+          employeeId: form.value.employeeIds[0] ?? null,
+        })
+      } catch {
+        // ignore — task exists; its column is whatever the backend defaulted to
+      }
     }
     success('Task dibuat.')
     emit('created')

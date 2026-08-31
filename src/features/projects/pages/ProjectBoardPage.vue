@@ -29,7 +29,9 @@ auth.hydrate()
 const companyIds = computed(() =>
   (auth.employee?.companies ?? []).map((c) => Number(c.id)).filter(Boolean),
 )
-const unitIds = computed(() => (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean))
+const unitIds = computed(() =>
+  (auth.employee?.units ?? []).map((u) => Number(u.id)).filter(Boolean),
+)
 
 // Columns come from the task-status definitions (`listTaskStatus`), ordered by
 // `ordering`; a small palette cycles the accent colors.
@@ -45,6 +47,11 @@ const tasks = computed(() =>
 )
 const milestones = computed(() =>
   (project.value?.milestones ?? []).map((m) => ({ id: m.id, name: m.name })),
+)
+// `order` is required by TaskInput; give a new task the next sequential order
+// across all project tasks (mirrors the create/edit project pages).
+const nextTaskOrder = computed(
+  () => (project.value?.milestones ?? []).reduce((n, m) => n + (m.tasks?.length ?? 0), 0) + 1,
 )
 
 // Apollo freezes query results (read-only). We keep a mutable deep copy so the
@@ -168,6 +175,7 @@ onMounted(async () => {
       :status-id="createStatus.id"
       :status-name="createStatus.name"
       :milestones="milestones"
+      :order="nextTaskOrder"
       @created="onCreated"
     />
 

@@ -151,6 +151,21 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Wipe the session immediately, without calling the server. Used when the
+   * gateway rejects our token (expired/invalid): the token is already useless so
+   * there's nothing to invalidate server-side, and unlike `logout()` we must NOT
+   * keep storage on a failed server call — we always clear it here so the app
+   * can't bounce back as "authenticated". Called by the Apollo error link.
+   */
+  function clearSession() {
+    token.value = ''
+    user.value = null
+    employee.value = null
+    clearStorage()
+    apolloClient.clearStore().catch(() => {})
+  }
+
+  /**
    * Change the signed-in user's password. The mutation runs authenticated with
    * the current token; on success the API returns a fresh session (token + user +
    * employee) — the old token is invalidated. We re-seat the store with that new
@@ -195,6 +210,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     hydrate,
     logout,
+    clearSession,
     changePassword,
   }
 })

@@ -5,11 +5,15 @@
  * real GraphQL; other features still run on mock data and migrate by importing
  * operations from their own `graphql/` folder (e.g. `@/features/projects/graphql`).
  */
-import { ApolloClient, InMemoryCache, createHttpLink, split } from '@apollo/client/core'
+import { ApolloClient, InMemoryCache, createHttpLink, from, split } from '@apollo/client/core'
 import { setContext } from '@apollo/client/link/context'
+import { onError } from '@apollo/client/link/error'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { getMainDefinition } from '@apollo/client/utilities'
 import { createClient } from 'graphql-ws'
+import { useAuthStore } from '@/features/auth/stores/auth'
+import { useToast } from '@/shared/composables/useToast'
+import router from '@/app/router'
 
 // In dev we hit a same-origin path that Vite proxies to API_GATEWAY (avoids CORS,
 // since the gateway sends no CORS headers). In production we call the gateway directly.
@@ -27,6 +31,59 @@ const authLink = setContext((_, { headers }) => {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   }
+})
+
+// Detect an authentication error (expired / invalid session) from the gateway's
+// error shape: a GraphQL error message or code, or a 401/403 network status.
+function isAuthError(graphQLErrors, networkError) {
+  const expiredPattern =
+    /expired|unauthenticated|unauthorized|signature|invalid token|not authenticated|token/i
+  const hasGqlAuthError = (graphQLErrors || []).some((err) => {
+    const code = err?.extensions?.code
+    return (
+      code === 'UNAUTHENTICATED' ||
+      code === 'FORBIDDEN' ||
+      code === 'TOKEN_EXPIRED' ||
+      expiredPattern.test(err?.message || '')
+    )
+  })
+  const status = networkError?.statusCode || networkError?.response?.status
+  return hasGqlAuthError || status === 401 || status === 403
+}
+
+// When the session expires: wipe it, tell the user, and route to /login. We use
+// `clearSession()` (not `logout()`) because the token is already invalid — there's
+// nothing to invalidate server-side, and `logout()` would keep storage on a failed
+// server call, leaving us stuck as "authenticated". `router.push` keeps the SPA
+// intact (no full reload). Imports are used lazily inside this function, so the
+// router → auth store → apolloClient import cycle resolves fine at call time.
+let handlingExpiry = false
+function handleSessionExpired() {
+  if (handlingExpiry) return // one failed batch can fire onError several times
+  handlingExpiry = true
+
+  const auth = useAuthStore()
+  // Skip when we're not signed in anyway (e.g. a failed login on the login page).
+  if (auth.isAuthenticated) {
+    auth.clearSession()
+    useToast().error('Sesi Anda telah berakhir. Silakan masuk kembali.')
+    const current = router.currentRoute.value
+    if (current.name !== 'login') {
+      router.push({
+        name: 'login',
+        query: current.path !== '/' ? { redirect: current.fullPath } : {},
+      })
+    }
+  }
+
+  // Reset so a later expiry (after signing back in) is handled again.
+  setTimeout(() => {
+    handlingExpiry = false
+  }, 1000)
+}
+
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (isAuthError(graphQLErrors, networkError)) handleSessionExpired()
 })
 
 // WebSocket link for GraphQL subscriptions (Strawberry gateway, graphql-transport-ws).
@@ -55,7 +112,7 @@ const link = split(
     return def.kind === 'OperationDefinition' && def.operation === 'subscription'
   },
   wsLink,
-  authLink.concat(httpLink),
+  from([errorLink, authLink, httpLink]),
 )
 
 export const apolloClient = new ApolloClient({

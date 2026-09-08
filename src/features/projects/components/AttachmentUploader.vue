@@ -39,24 +39,9 @@ const { success, error: toastError } = useToast()
 
 const canUpload = computed(() => auth.can(PERM.CREATE_ATTACHMENT))
 
-// ── Allowed files: images, pdf, office (word/excel/powerpoint), ≤ 5 MB each ────
-const MAX_SIZE = 5 * 1024 * 1024
-const ALLOWED_EXT = [
-  'jpg',
-  'jpeg',
-  'png',
-  'gif',
-  'webp',
-  'bmp',
-  'svg',
-  'pdf',
-  'xls',
-  'xlsx',
-  'doc',
-  'docx',
-  'ppt',
-  'pptx',
-]
+// ── Allowed files ─────────────────────────────────────────────────────────────
+// No size limit for any file. Images: any format. Other docs: pdf/office only.
+const DOC_EXT = ['pdf', 'xls', 'xlsx', 'doc', 'docx', 'ppt', 'pptx']
 const ACCEPT = 'image/*,.pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx'
 
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']
@@ -66,6 +51,10 @@ const extOf = (name) =>
     .split('.')
     .pop()
     .toLowerCase()
+
+/** An image is detected by MIME type (covers heic/tiff/etc.) or a known ext. */
+const isImageFile = (file) =>
+  (file?.type || '').startsWith('image/') || IMAGE_EXT.includes(extOf(file?.name))
 
 /** Icon for a file, chosen by extension. */
 function iconFor(name) {
@@ -124,17 +113,17 @@ const previewUrl = ref('') // object URL for an image preview (revoked on change
 const error = ref('') // single validation error
 const uploading = ref(false)
 
-const selectedIsImage = computed(
-  () => selected.value && IMAGE_EXT.includes(extOf(selected.value.name)),
-)
+const selectedIsImage = computed(() => selected.value && isImageFile(selected.value))
 
 function pick() {
   fileInput.value?.click()
 }
 
 function validate(file) {
-  if (!ALLOWED_EXT.includes(extOf(file.name))) return `“${file.name}”: format tidak didukung.`
-  if (file.size > MAX_SIZE) return `“${file.name}”: melebihi 5 MB.`
+  // No size limit for any file. Images: any format allowed.
+  if (isImageFile(file)) return null
+  // Other files: only pdf/office formats.
+  if (!DOC_EXT.includes(extOf(file.name))) return `“${file.name}”: format tidak didukung.`
   return null
 }
 
@@ -161,7 +150,7 @@ function onSelect(event) {
   }
   clearSelected()
   selected.value = file
-  if (IMAGE_EXT.includes(extOf(file.name))) previewUrl.value = URL.createObjectURL(file)
+  if (isImageFile(file)) previewUrl.value = URL.createObjectURL(file)
 }
 
 async function upload() {
@@ -292,7 +281,9 @@ onBeforeUnmount(clearSelected)
             {{ uploading ? 'Mengunggah…' : 'Unggah' }}
           </button>
         </div>
-        <p class="text-caption">Gambar, PDF, Word, Excel, PowerPoint · maks 5 MB · 1 file.</p>
+        <p class="text-caption">
+          Gambar (bebas format) · PDF, Word, Excel, PowerPoint · tanpa batas ukuran · 1 file.
+        </p>
       </div>
     </div>
   </div>

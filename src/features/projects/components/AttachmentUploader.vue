@@ -193,26 +193,34 @@ onBeforeUnmount(clearSelected)
 
     <div v-if="expanded" :class="collapsible ? 'mt-2.5 space-y-3' : 'space-y-3'">
       <!-- Existing files -->
-      <ul v-if="fileRows.length" class="space-y-1.5">
+      <ul v-if="fileRows.length" :class="collapsible ? 'space-y-1' : 'space-y-1.5'">
         <li
           v-for="f in fileRows"
           :key="f.key"
-          class="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white/70 px-3 py-2"
+          class="flex items-center border border-slate-100 bg-white/70"
+          :class="collapsible ? 'gap-2 rounded-lg px-2 py-1' : 'gap-2.5 rounded-xl px-3 py-2'"
         >
           <!-- Real thumbnail for images; type icon otherwise -->
           <a v-if="f.isImage" :href="f.url" target="_blank" rel="noopener" class="shrink-0">
             <img
               :src="f.url"
               :alt="f.name"
-              class="h-9 w-9 rounded-lg border border-slate-100 object-cover"
+              class="rounded border border-slate-100 object-cover"
+              :class="collapsible ? 'h-6 w-6' : 'h-9 w-9 rounded-lg'"
             />
           </a>
-          <component :is="iconFor(f.name)" v-else class="h-4.5 w-4.5 shrink-0 text-slate-400" />
+          <component
+            :is="iconFor(f.name)"
+            v-else
+            class="shrink-0 text-slate-400"
+            :class="collapsible ? 'h-3.5 w-3.5' : 'h-4.5 w-4.5'"
+          />
           <a
             :href="f.url"
             target="_blank"
             rel="noopener"
-            class="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 hover:text-primary-600"
+            class="min-w-0 flex-1 truncate font-medium text-slate-700 hover:text-primary-600"
+            :class="collapsible ? 'text-xs' : 'text-sm'"
           >
             {{ f.name }}
           </a>

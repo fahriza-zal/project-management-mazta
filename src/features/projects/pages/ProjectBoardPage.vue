@@ -6,9 +6,12 @@ import { useTaskStatusStore } from '@/features/task-status/stores/taskStatus'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { PERM } from '@/features/projects/permissions'
 import { useToast } from '@/shared/composables/useToast'
-import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import { formatDate } from '@/shared/utils/format'
+import { ArrowLeftIcon, FlagIcon, CalendarDaysIcon } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseModal from '@/shared/components/base/BaseModal.vue'
+import BaseBadge from '@/shared/components/base/BaseBadge.vue'
+import BaseAvatar from '@/shared/components/base/BaseAvatar.vue'
 import ProjectTaskBoard from '@/features/projects/components/ProjectTaskBoard.vue'
 import KanbanTaskCreateModal from '@/features/projects/components/KanbanTaskCreateModal.vue'
 import TaskComments from '@/features/projects/components/TaskComments.vue'
@@ -76,20 +79,44 @@ async function onCreated() {
   await reload()
 }
 
-// Comments modal, opened from a card's comment button.
-const commentOpen = ref(false)
-const commentTaskId = ref(null)
-const commentTask = computed(() => tasks.value.find((t) => t.id === commentTaskId.value) ?? null)
+// Task detail modal, opened by clicking a card (or its comment button). Shows the
+// task info, description, assignees, comments & attachments.
+const detailOpen = ref(false)
+const detailTaskId = ref(null)
+const detailTask = computed(() => tasks.value.find((t) => t.id === detailTaskId.value) ?? null)
 
-function onComment(task) {
-  commentTaskId.value = task.id
-  commentOpen.value = true
+function onOpenTask(task) {
+  detailTaskId.value = task.id
+  detailOpen.value = true
 }
 
-/** Refetch so the new comment (and its count on the card) shows up. */
-async function onCommentSaved() {
+/** Refetch so any change (new comment, file, …) shows up on the card. */
+async function onDetailSaved() {
   await reload()
 }
+
+const PRIORITY_COLORS = { low: 'slate', medium: 'info', high: 'warning', critical: 'danger' }
+const priorityColor = (p) => PRIORITY_COLORS[String(p).toLowerCase()] ?? 'slate'
+
+/** Task statuses are dynamic — colour them by name heuristic (mirrors detail page). */
+function taskStatusColor(name) {
+  const n = String(name || '').toLowerCase()
+  if (/progress|doing|ongoing/.test(n)) return 'info'
+  if (/done|complete|closed|finish|approv/.test(n)) return 'success'
+  if (/review|hold|pending/.test(n)) return 'warning'
+  if (/cancel|reject|block/.test(n)) return 'danger'
+  if (/draft|todo|backlog|new|open/.test(n)) return 'slate'
+  return 'primary'
+}
+
+const humanize = (v) =>
+  v
+    ? String(v)
+        .toLowerCase()
+        .split(/[_\s]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+    : ''
 
 /**
  * Move a task to another status. Optimistic: the card jumps columns immediately,
@@ -166,7 +193,8 @@ onMounted(async () => {
       :can-move="auth.can(PERM.UPDATE_TASK)"
       @add="onAdd"
       @status-change="onStatusChange"
-      @comment="onComment"
+      @comment="onOpenTask"
+      @open="onOpenTask"
     />
 
     <!-- Create task -->
@@ -179,28 +207,93 @@ onMounted(async () => {
       @created="onCreated"
     />
 
-    <!-- Task comments + attachments -->
+    <!-- Task detail: info + comments + attachments -->
     <BaseModal
-      v-model="commentOpen"
-      :title="commentTask ? commentTask.title : 'Task'"
-      subtitle="Comments & files"
+      v-model="detailOpen"
+      :title="detailTask ? detailTask.title : 'Task'"
+      subtitle="Detail task"
       size="lg"
     >
-      <template v-if="commentTask">
-        <TaskComments
-          :key="commentTask.id"
-          :task="commentTask"
-          :collapsible="false"
-          @saved="onCommentSaved"
-        />
+      <template v-if="detailTask">
+        <!-- Badges: status, priority, milestone -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <BaseBadge
+            v-if="detailTask.currentStatus?.name"
+            :color="taskStatusColor(detailTask.currentStatus.name)"
+            size="sm"
+          >
+            {{ humanize(detailTask.currentStatus.name) }}
+          </BaseBadge>
+          <BaseBadge
+            v-if="detailTask.priority"
+            :color="priorityColor(detailTask.priority)"
+            size="sm"
+          >
+            {{ humanize(detailTask.priority) }} Priority
+          </BaseBadge>
+          <span
+            v-if="detailTask.milestone?.name"
+            class="inline-flex items-center gap-1 text-xs text-slate-500"
+          >
+            <FlagIcon class="h-3.5 w-3.5" />
+            {{ detailTask.milestone.name }}
+          </span>
+          <span
+            v-if="detailTask.dueDate"
+            class="inline-flex items-center gap-1 text-xs text-slate-500"
+          >
+            <CalendarDaysIcon class="h-3.5 w-3.5" />
+            {{ formatDate(detailTask.dueDate) }}
+          </span>
+        </div>
+
+        <!-- Description -->
+        <div class="mt-4">
+          <p class="text-subheading mb-1">Deskripsi</p>
+          <p class="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+            {{ detailTask.description || 'Tidak ada deskripsi.' }}
+          </p>
+        </div>
+
+        <!-- Assignees -->
+        <div class="mt-4">
+          <p class="text-subheading mb-2">Assigned to</p>
+          <ul v-if="detailTask.assignments?.length" class="flex flex-wrap gap-2">
+            <li
+              v-for="a in detailTask.assignments"
+              :key="a.id"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-100 bg-white/70 py-1 pl-1 pr-3"
+            >
+              <BaseAvatar
+                :name="a.employee?.fullName || '?'"
+                :src="a.employee?.image || ''"
+                size="xs"
+              />
+              <span class="text-xs font-medium text-slate-700">{{
+                a.employee?.fullName || '—'
+              }}</span>
+            </li>
+          </ul>
+          <p v-else class="text-sm italic text-slate-400">Unassigned</p>
+        </div>
+
+        <div class="mt-4 border-t border-slate-100 pt-4">
+          <TaskComments
+            :key="detailTask.id"
+            :task="detailTask"
+            :collapsible="false"
+            @saved="onDetailSaved"
+          />
+        </div>
+
         <div class="mt-4 border-t border-slate-100 pt-4">
           <p class="text-subheading mb-2">Attachments</p>
           <AttachmentUploader
-            :key="`att-${commentTask.id}`"
-            :task-id="commentTask.id"
-            :attachments="commentTask.attachments"
+            :key="`att-${detailTask.id}`"
+            :task-id="detailTask.id"
+            :attachments="detailTask.attachments"
             :collapsible="false"
-            @saved="onCommentSaved"
+            @saved="onDetailSaved"
           />
         </div>
       </template>

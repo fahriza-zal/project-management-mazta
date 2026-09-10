@@ -798,6 +798,14 @@ onMounted(async () => {
                             </div>
                           </div>
 
+                          <!-- description -->
+                          <p
+                            v-if="t.description"
+                            class="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-600"
+                          >
+                            {{ t.description }}
+                          </p>
+
                           <!-- badges -->
                           <div class="mt-2 flex flex-wrap items-center gap-1.5">
                             <BaseBadge v-if="t.taskType" color="primary" size="sm">
@@ -983,6 +991,9 @@ onMounted(async () => {
                     <ClipboardDocumentListIcon v-else class="h-4 w-4 shrink-0 text-slate-300" />
                     <div class="min-w-0 flex-1">
                       <p class="truncate font-medium text-slate-700">{{ t.title }}</p>
+                      <p v-if="t.description" class="text-caption line-clamp-2 whitespace-pre-line">
+                        {{ t.description }}
+                      </p>
                       <p class="text-caption truncate">{{ t._milestoneName }}</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">

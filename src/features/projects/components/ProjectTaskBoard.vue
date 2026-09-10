@@ -23,7 +23,7 @@ const props = defineProps({
   canCreate: { type: Boolean, default: true }, // show the per-column add button
   canMove: { type: Boolean, default: true }, // allow drag & drop between columns
 })
-const emit = defineEmits(['status-change', 'add', 'comment'])
+const emit = defineEmits(['status-change', 'add', 'comment', 'open'])
 
 const dotColor = {
   slate: 'bg-slate-400',
@@ -128,14 +128,16 @@ function onDrop(statusId) {
           v-for="task in grouped[col.id] || []"
           :key="task.id"
           :draggable="canMove"
-          class="rounded-xl border p-3.5 shadow-soft transition"
+          class="cursor-pointer rounded-xl border p-3.5 shadow-soft transition"
           :class="[
-            canMove ? 'cursor-grab active:cursor-grabbing' : '',
+            canMove ? 'active:cursor-grabbing' : '',
             isOverdue(task)
               ? 'border-red-300 bg-red-50/70 hover:border-red-400'
               : 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-card-hover',
           ]"
+          title="Lihat detail task"
           @dragstart="onDragStart(task, $event)"
+          @click="emit('open', task)"
         >
           <div class="mb-2 flex items-start justify-between gap-2">
             <h4 class="text-sm font-semibold leading-snug text-slate-800">{{ task.title }}</h4>

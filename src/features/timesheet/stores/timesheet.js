@@ -1,6 +1,8 @@
 import { ref } from 'vue'
+import { print } from 'graphql'
 import { defineStore, acceptHMRUpdate } from 'pinia'
 import { apolloClient } from '@/shared/graphql/apolloClient'
+import { graphqlUpload } from '@/shared/graphql/uploadClient'
 import {
   GET_EMPLOYEE,
   CREATE_TIMESHEET,
@@ -19,6 +21,17 @@ const PICKER_PAGE_SIZE = 20
 /** Turn an Apollo/GraphQL error into a user-friendly message. */
 function toMessage(err, fallback) {
   return err?.graphQLErrors?.[0]?.message || fallback
+}
+
+/** Like `toMessage`, but also keeps plain-Error messages thrown by `graphqlUpload`. */
+function uploadMsg(err, fallback) {
+  return err?.graphQLErrors?.[0]?.message || err?.message || fallback
+}
+
+/** First File from an attachment `files` (accepts a single File or an array). */
+function pickFile(files) {
+  if (!files) return null
+  return Array.isArray(files) ? (files[0] ?? null) : files
 }
 
 /**
@@ -180,12 +193,21 @@ export const useTimesheetStore = defineStore('timesheet', () => {
 
   /* --- Lifecycle transitions (each returns the new { id, status }) --- */
 
-  /** Start (or resume) a timesheet with an optional note. */
-  async function startSheet(id, description = null) {
+  /**
+   * Start (or resume) a timesheet with an optional note.
+   * `coords` = { latitude, longitude } — koordinat perangkat saat aksi (opsional,
+   * default null bila tak tersedia/ditolak).
+   */
+  async function startSheet(id, description = null, coords = {}) {
     try {
       const { data } = await apolloClient.mutate({
         mutation: START_SHEET,
-        variables: { startSheetId: Number(id), description: description || null },
+        variables: {
+          startSheetId: Number(id),
+          description: description || null,
+          latitude: coords.latitude ?? null,
+          longitude: coords.longitude ?? null,
+        },
       })
       return data?.startSheet?.data ?? null
     } catch (err) {
@@ -193,29 +215,64 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     }
   }
 
-  /** Put a timesheet on hold with an optional note. */
-  async function holdSheet(id, description = null) {
+  /**
+   * Put a timesheet on hold with an optional note + koordinat + lampiran.
+   * `attachment` = { files, attachmentDescription }. `files` = satu File (atau
+   * array; dipakai yang pertama). Bila ada file → kirim multipart (`graphqlUpload`);
+   * tanpa file → Apollo biasa dengan `files: null`.
+   */
+  async function holdSheet(id, description = null, coords = {}, attachment = {}) {
+    const file = pickFile(attachment.files)
+    const vars = {
+      holdSheetId: Number(id),
+      description: description || null,
+      latitude: coords.latitude ?? null,
+      longitude: coords.longitude ?? null,
+      files: null,
+      attachmentDescription: attachment.attachmentDescription || null,
+    }
     try {
-      const { data } = await apolloClient.mutate({
-        mutation: HOLD_SHEET,
-        variables: { holdSheetId: Number(id), description: description || null },
-      })
+      if (file) {
+        const data = await graphqlUpload({
+          query: print(HOLD_SHEET),
+          variables: vars,
+          files: [file],
+          filesPath: 'variables.files',
+        })
+        return data?.holdSheet?.data ?? null
+      }
+      const { data } = await apolloClient.mutate({ mutation: HOLD_SHEET, variables: vars })
       return data?.holdSheet?.data ?? null
     } catch (err) {
-      throw new Error(toMessage(err, 'Gagal menahan timesheet.'))
+      throw new Error(uploadMsg(err, 'Gagal menahan timesheet.'))
     }
   }
 
-  /** Close a timesheet with an optional note. */
-  async function closeSheet(id, description = null) {
+  /** Close a timesheet with an optional note + koordinat + lampiran (lihat holdSheet). */
+  async function closeSheet(id, description = null, coords = {}, attachment = {}) {
+    const file = pickFile(attachment.files)
+    const vars = {
+      closeSheetId: Number(id),
+      description: description || null,
+      latitude: coords.latitude ?? null,
+      longitude: coords.longitude ?? null,
+      files: null,
+      attachmentDescription: attachment.attachmentDescription || null,
+    }
     try {
-      const { data } = await apolloClient.mutate({
-        mutation: CLOSE_SHEET,
-        variables: { closeSheetId: Number(id), description: description || null },
-      })
+      if (file) {
+        const data = await graphqlUpload({
+          query: print(CLOSE_SHEET),
+          variables: vars,
+          files: [file],
+          filesPath: 'variables.files',
+        })
+        return data?.closeSheet?.data ?? null
+      }
+      const { data } = await apolloClient.mutate({ mutation: CLOSE_SHEET, variables: vars })
       return data?.closeSheet?.data ?? null
     } catch (err) {
-      throw new Error(toMessage(err, 'Gagal menutup timesheet.'))
+      throw new Error(uploadMsg(err, 'Gagal menutup timesheet.'))
     }
   }
 

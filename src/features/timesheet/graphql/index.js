@@ -86,6 +86,12 @@ export const LIST_TIMESHEET = gql`
         hasPrev
         results {
           id
+          attachments {
+            id
+            files
+            description
+            createdAt
+          }
           approvedAt
           approvedBy {
             email
@@ -130,10 +136,20 @@ export const LIST_TIMESHEET = gql`
 /* All take an optional `description` note.                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Start (or resume) a timesheet. Variables: { startSheetId: Int!, description: String }. */
+/** Start (or resume) a timesheet. Variables: { startSheetId: Int!, description: String, latitude: Float, longitude: Float }. */
 export const START_SHEET = gql`
-  mutation StartSheet($startSheetId: Int!, $description: String) {
-    startSheet(id: $startSheetId, description: $description) {
+  mutation StartSheet(
+    $startSheetId: Int!
+    $description: String
+    $latitude: Float
+    $longitude: Float
+  ) {
+    startSheet(
+      id: $startSheetId
+      description: $description
+      latitude: $latitude
+      longitude: $longitude
+    ) {
       data {
         id
         status
@@ -142,10 +158,30 @@ export const START_SHEET = gql`
   }
 `
 
-/** Put a timesheet on hold. Variables: { holdSheetId: Int!, description: String }. */
+/**
+ * Put a timesheet on hold. Variables:
+ * { holdSheetId: Int!, description: String, latitude: Float, longitude: Float,
+ *   files: Upload, attachmentDescription: String }.
+ * `files` is a single `Upload` scalar — kirim lewat `graphqlUpload` (multipart)
+ * saat ada file; tanpa file cukup Apollo biasa dengan `files: null`.
+ */
 export const HOLD_SHEET = gql`
-  mutation HoldSheet($holdSheetId: Int!, $description: String) {
-    holdSheet(id: $holdSheetId, description: $description) {
+  mutation HoldSheet(
+    $holdSheetId: Int!
+    $description: String
+    $latitude: Float
+    $longitude: Float
+    $files: Upload
+    $attachmentDescription: String
+  ) {
+    holdSheet(
+      id: $holdSheetId
+      description: $description
+      latitude: $latitude
+      longitude: $longitude
+      files: $files
+      attachmentDescription: $attachmentDescription
+    ) {
       data {
         id
         status
@@ -154,10 +190,28 @@ export const HOLD_SHEET = gql`
   }
 `
 
-/** Close a timesheet. Variables: { closeSheetId: Int!, description: String }. */
+/**
+ * Close a timesheet. Variables:
+ * { closeSheetId: Int!, description: String, latitude: Float, longitude: Float,
+ *   files: Upload, attachmentDescription: String }.
+ */
 export const CLOSE_SHEET = gql`
-  mutation CloseSheet($closeSheetId: Int!, $description: String) {
-    closeSheet(id: $closeSheetId, description: $description) {
+  mutation CloseSheet(
+    $closeSheetId: Int!
+    $description: String
+    $latitude: Float
+    $longitude: Float
+    $files: Upload
+    $attachmentDescription: String
+  ) {
+    closeSheet(
+      id: $closeSheetId
+      description: $description
+      latitude: $latitude
+      longitude: $longitude
+      files: $files
+      attachmentDescription: $attachmentDescription
+    ) {
       data {
         id
         status

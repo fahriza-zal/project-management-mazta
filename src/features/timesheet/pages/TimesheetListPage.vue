@@ -18,6 +18,7 @@ import {
   UserIcon,
   ArrowDownTrayIcon,
   EnvelopeIcon,
+  PaperClipIcon,
 } from '@heroicons/vue/24/outline'
 import BaseButton from '@/shared/components/base/BaseButton.vue'
 import BaseInput from '@/shared/components/base/BaseInput.vue'
@@ -394,6 +395,42 @@ function onCreated() {
   load()
 }
 
+/* --- Lampiran (foto/file) yang tersimpan di sheet, mis. dari hold/close --- */
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic', 'heif']
+const extOf = (name) => String(name).split('.').pop()?.toLowerCase() || ''
+/** `files` bisa string URL tunggal, array, atau array ber-JSON-string. */
+function normalizeFiles(files) {
+  if (Array.isArray(files)) return files.filter(Boolean)
+  if (typeof files === 'string') {
+    const s = files.trim()
+    if (s.startsWith('[')) {
+      try {
+        const arr = JSON.parse(s)
+        if (Array.isArray(arr)) return arr.filter(Boolean)
+      } catch {
+        /* fall through to single */
+      }
+    }
+    return s ? [s] : []
+  }
+  return []
+}
+/** Ratakan `row.attachments` → satu baris per file URL (untuk thumbnail/preview). */
+function attachmentFiles(row) {
+  return (row.attachments ?? []).flatMap((a) =>
+    normalizeFiles(a.files).map((url, i) => {
+      const name = String(url).split(/[/\\]/).pop() || 'file'
+      return {
+        key: `${a.id}-${i}`,
+        url,
+        name,
+        isImage: IMAGE_EXT.includes(extOf(name)),
+        description: a.description,
+      }
+    }),
+  )
+}
+
 /* --- Lifecycle action (start / hold / close) with an optional note --- */
 const ACTION_META = {
   start: {
@@ -424,14 +461,44 @@ const actionSaving = ref(false)
 const actionNote = ref('')
 const actionType = ref('start')
 const actionRow = ref(null)
+// Lampiran opsional (hanya untuk hold/close): satu file + deskripsinya.
+const actionFile = ref(null)
+const actionAttachmentDesc = ref('')
 
 const actionMeta = computed(() => ACTION_META[actionType.value])
+// Hold & close boleh melampirkan file; start tidak.
+const actionAllowsFile = computed(() => actionType.value !== 'start')
 
 function openAction(row, type) {
   actionRow.value = row
   actionType.value = type
   actionNote.value = ''
+  actionFile.value = null
+  actionAttachmentDesc.value = ''
   actionOpen.value = true
+}
+
+function onActionFile(e) {
+  actionFile.value = e.target.files?.[0] ?? null
+}
+
+/**
+ * Best-effort koordinat perangkat untuk distempel pada aksi lifecycle. Tak pernah
+ * throw: jika Geolocation tak didukung / ditolak / timeout → { latitude: null,
+ * longitude: null } (backend menerima null).
+ */
+function getGeolocation() {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve({ latitude: null, longitude: null })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve({ latitude: null, longitude: null }),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+    )
+  })
 }
 
 async function confirmAction() {
@@ -440,7 +507,15 @@ async function confirmAction() {
     const { method, done, state } = actionMeta.value
     const id = actionRow.value.id
     const note = actionNote.value.trim() || null
-    const result = await store[method](id, note)
+    const coords = await getGeolocation()
+    // Lampiran hanya relevan untuk hold/close; startSheet mengabaikan arg ke-4.
+    const attachment = actionAllowsFile.value
+      ? {
+          files: actionFile.value ? [actionFile.value] : [],
+          attachmentDescription: actionAttachmentDesc.value.trim() || null,
+        }
+      : {}
+    const result = await store[method](id, note, coords, attachment)
     // Update the card in place (no blocking refetch): force the target state and
     // append the new activity so buttons flip and the timeline shows the entry
     // instantly. Apollo freezes results, so replace the row with a clone.
@@ -948,6 +1023,46 @@ onMounted(load)
                     </li>
                   </ol>
                   <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
+
+                  <!-- Lampiran (foto/file) sheet, mis. dari hold/close -->
+                  <div
+                    v-if="attachmentFiles(row).length"
+                    class="mt-3 border-t border-slate-200/70 pt-3"
+                  >
+                    <p
+                      class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
+                    >
+                      Lampiran
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <template v-for="f in attachmentFiles(row)" :key="f.key">
+                        <a
+                          v-if="f.isImage"
+                          :href="f.url"
+                          target="_blank"
+                          rel="noopener"
+                          :title="f.description || f.name"
+                        >
+                          <img
+                            :src="f.url"
+                            :alt="f.name"
+                            class="h-16 w-16 rounded-lg border border-slate-200 object-cover transition hover:opacity-90"
+                          />
+                        </a>
+                        <a
+                          v-else
+                          :href="f.url"
+                          target="_blank"
+                          rel="noopener"
+                          :title="f.description || f.name"
+                          class="inline-flex max-w-[10rem] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                        >
+                          <PaperClipIcon class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span class="truncate">{{ f.name }}</span>
+                        </a>
+                      </template>
+                    </div>
+                  </div>
                 </div>
               </li>
             </ul>
@@ -1117,6 +1232,46 @@ onMounted(load)
                     </li>
                   </ol>
                   <p v-else class="text-xs text-slate-400">Belum ada aktivitas.</p>
+
+                  <!-- Lampiran (foto/file) sheet, mis. dari hold/close -->
+                  <div
+                    v-if="attachmentFiles(row).length"
+                    class="mt-3 border-t border-slate-200/70 pt-3"
+                  >
+                    <p
+                      class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
+                    >
+                      Lampiran
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <template v-for="f in attachmentFiles(row)" :key="f.key">
+                        <a
+                          v-if="f.isImage"
+                          :href="f.url"
+                          target="_blank"
+                          rel="noopener"
+                          :title="f.description || f.name"
+                        >
+                          <img
+                            :src="f.url"
+                            :alt="f.name"
+                            class="h-16 w-16 rounded-lg border border-slate-200 object-cover transition hover:opacity-90"
+                          />
+                        </a>
+                        <a
+                          v-else
+                          :href="f.url"
+                          target="_blank"
+                          rel="noopener"
+                          :title="f.description || f.name"
+                          class="inline-flex max-w-[10rem] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                        >
+                          <PaperClipIcon class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span class="truncate">{{ f.name }}</span>
+                        </a>
+                      </template>
+                    </div>
+                  </div>
                 </div>
               </li>
             </ul>
@@ -1151,6 +1306,27 @@ onMounted(load)
         placeholder="Tambahkan catatan untuk aktivitas ini…"
         :rows="3"
       />
+
+      <!-- Lampiran opsional — hanya untuk hold/close -->
+      <div v-if="actionAllowsFile" class="mt-4 space-y-3">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Lampiran (opsional)</label>
+          <input
+            type="file"
+            class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-600 hover:file:bg-primary-100"
+            @change="onActionFile"
+          />
+          <p v-if="actionFile" class="mt-1 truncate text-xs text-slate-500">
+            {{ actionFile.name }}
+          </p>
+        </div>
+        <BaseInput
+          v-model="actionAttachmentDesc"
+          label="Deskripsi lampiran (opsional)"
+          placeholder="Keterangan singkat untuk file ini…"
+        />
+      </div>
+
       <template #footer>
         <div class="flex justify-end gap-2">
           <BaseButton variant="outline" type="button" @click="actionOpen = false">Batal</BaseButton>

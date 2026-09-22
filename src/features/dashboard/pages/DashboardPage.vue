@@ -9,6 +9,7 @@ import OverviewDashboard from '@/features/dashboard/components/OverviewDashboard
 import HistoryDashboard from '@/features/dashboard/components/HistoryDashboard.vue'
 import ProjectGanttChart from '@/features/dashboard/components/ProjectGanttChart.vue'
 import UnitProjectSummary from '@/features/dashboard/components/UnitProjectSummary.vue'
+import DeadlineReminder from '@/features/dashboard/components/DeadlineReminder.vue'
 import BaseCard from '@/shared/components/base/BaseCard.vue'
 import BaseEmpty from '@/shared/components/base/BaseEmpty.vue'
 
@@ -131,10 +132,26 @@ const activeSubtitle = computed(() => tabs.value.find((t) => t.key === tab.value
       </div>
     </div>
 
-    <!-- Project timeline — at the top so every permitted user sees their unit's
-         project timeline right after login, regardless of tab. -->
-    <!-- Ringkasan jumlah project per unit — klik unit untuk membuka timeline-nya
-         (accordion) langsung di bawah barisnya. -->
+    <!-- 1 · Pengingat deadline minggu ini — paling atas: paling actionable &
+         lintas-tab. Dari data timeline (getRangeProject), tanpa query tambahan. -->
+    <DeadlineReminder v-if="canGantt" :ranges="projectRanges" :loading="ganttLoading" />
+
+    <!-- 2 · Isi tab aktif (Overview: alarm + kesehatan + daftar project). -->
+    <PersonalDashboard v-if="tab === 'personal'" />
+    <OverviewDashboard v-else-if="tab === 'overview'" :ranges="projectRanges" />
+    <HistoryDashboard v-else-if="tab === 'history'" />
+
+    <!-- No dashboard permitted (and no timeline either) -->
+    <BaseCard v-else-if="!canGantt">
+      <BaseEmpty
+        :icon="LockClosedIcon"
+        title="Tidak ada dashboard yang tersedia"
+        description="Anda belum memiliki izin untuk melihat dashboard apa pun."
+      />
+    </BaseCard>
+
+    <!-- 3 · Timeline & ringkasan per unit — alat eksplorasi/perencanaan, jadi
+         ditaruh paling bawah. Klik unit → Gantt-nya terbuka (accordion). -->
     <UnitProjectSummary
       v-if="canGantt"
       :ranges="projectRanges"
@@ -147,24 +164,10 @@ const activeSubtitle = computed(() => tabs.value.find((t) => t.key === tab.value
           :key="selectedUnitId"
           :ranges="unitRanges"
           :loading="ganttLoading"
-          style="margin-top: 40px;"
+          style="margin-top: 40px"
           bare
         />
       </template>
     </UnitProjectSummary>
-
-    <!-- Active view -->
-    <PersonalDashboard v-if="tab === 'personal'" />
-    <OverviewDashboard v-else-if="tab === 'overview'" />
-    <HistoryDashboard v-else-if="tab === 'history'" />
-
-    <!-- No dashboard permitted (and no timeline either) -->
-    <BaseCard v-else-if="!canGantt">
-      <BaseEmpty
-        :icon="LockClosedIcon"
-        title="Tidak ada dashboard yang tersedia"
-        description="Anda belum memiliki izin untuk melihat dashboard apa pun."
-      />
-    </BaseCard>
   </div>
 </template>

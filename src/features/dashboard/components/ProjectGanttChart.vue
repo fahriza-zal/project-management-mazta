@@ -1,22 +1,30 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { LockClosedIcon, ChevronDownIcon } from '@heroicons/vue/24/outline'
+import {
+  LockClosedIcon,
+  ChevronDownIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon,
+} from '@heroicons/vue/24/outline'
 
 /**
  * Gantt-style timeline for projects — a three-level WBS (Project → Milestone →
- * Task) sharing one monthly timeline, modeled on the reference "construction"
- * Gantt: no charting dependency, pure div/CSS + Tailwind.
+ * Task) sharing one monthly timeline. No charting dependency: pure div/CSS.
  *
- *   • Project  → solid bar (blue), name written inside; square dot.
- *   • Milestone → solid bar (amber), name inside; diamond dot. Its span is the
- *                 min→max of its tasks (or its own expected dates).
- *   • Task     → outline bar (green) whose inner fill = progress; circle dot,
- *                with a "NN% · assignee" caption to the right.
+ * Readability model (redesign): **hierarchy is shown by the label column
+ * (indent + dot shape); the bar COLOR encodes STATUS**, which is what a PM scans
+ * for:
+ *   • Berjalan (in progress) → blue
+ *   • Selesai (done)         → green
+ *   • Terlambat (overdue)    → red
+ *   • Belum mulai (pending)  → slate
+ * Every bar is a soft status-tinted track with a solid fill = progress, and a
+ * "NN%" caption to its right (tasks also show the assignee). Names live in the
+ * sticky left column so short bars never clip them.
  *
- * Each project/milestone row has a chevron to fold its children; everything is
- * expanded by default so it reads as a full breakdown. Rows are flattened into
- * `visibleRows` so the sticky label column and the timeline stay row-aligned.
+ * Progress rolls up: milestone % = mean of its tasks, project % = mean of all
+ * its tasks (fallback to closed → 100%).
  *
  * Consumes the raw rows from `getRangeProject`:
  *   { startDate, expectedEndDate, endDate, project {
@@ -31,7 +39,7 @@ const props = defineProps({
   title: { type: String, default: 'Timeline Project' },
   subtitle: {
     type: String,
-    default: 'Project → Milestone → Task pada satu garis waktu bulanan.',
+    default: 'Warna bar = status · panjang = durasi · isian = progres.',
   },
   // Start expanded (revealed on demand, e.g. after picking a unit).
   initialOpen: { type: Boolean, default: false },
@@ -96,7 +104,7 @@ function assigneeNames(task) {
   return names
 }
 
-// Phase of a start → expected-end → actual-end entity (used for tooltips/overdue).
+// Phase of a start → expected-end → actual-end entity (used for status/overdue).
 function phase(start, expEnd, actEnd, closedFlag = false) {
   const closed = closedFlag || actEnd != null
   const plannedEnd = expEnd ?? actEnd ?? start
@@ -104,6 +112,8 @@ function phase(start, expEnd, actEnd, closedFlag = false) {
   const state = closed ? 'done' : overdue ? 'overdue' : 'active'
   return { start, expEnd, actEnd, plannedEnd, overdue, state }
 }
+
+const mean = (arr) => (arr.length ? Math.round(arr.reduce((s, n) => s + n, 0) / arr.length) : 0)
 
 // Normalize the tasks of a single milestone into placeable bars, each with a
 // timeline-derived progress (done → 100%, running → elapsed share, pending → 0%).
@@ -162,13 +172,20 @@ function normalizeMilestones(project) {
       (tasks.length ? Math.max(...tasks.map((t) => t.barEnd)) : null)
     const actEnd = parseDay(ms.actualEndDate)
     const start = ownStart ?? (tasks.length ? Math.min(...tasks.map((t) => t.barStart)) : null)
+    const ph = phase(start, expEnd, actEnd)
+    const progress = tasks.length
+      ? mean(tasks.map((t) => t.progress))
+      : ph.state === 'done'
+        ? 100
+        : 0
     out.push({
       key: `${project.id}-${ms.id}`,
       id: ms.id,
       name: ms.name || 'Tanpa nama',
       status: ms.status || '',
       hasBar: start != null,
-      ...phase(start, expEnd, actEnd),
+      progress,
+      ...ph,
       tasks,
     })
   }
@@ -184,24 +201,43 @@ const rows = computed(() =>
       const expEnd = parseDay(r.expectedEndDate) ?? parseDay(p.expectedEndDate)
       const actEnd = parseDay(r.endDate) ?? parseDay(p.endDate)
       const milestones = normalizeMilestones(p)
+      const allTasks = milestones.flatMap((m) => m.tasks)
+      const ph = phase(start, expEnd, actEnd, !!p.isClosed)
+      const progress = allTasks.length
+        ? mean(allTasks.map((t) => t.progress))
+        : ph.state === 'done'
+          ? 100
+          : 0
       return {
         id: p.id,
         name: p.name || 'Untitled',
         code: p.fullCode || p.prefix || '',
         locked: !!p.isLocked,
-        ...phase(start, expEnd, actEnd, !!p.isClosed),
+        progress,
+        ...ph,
         milestones,
-        taskCount: milestones.reduce((n, ms) => n + ms.tasks.length, 0),
+        taskCount: allTasks.length,
       }
     })
     .filter((r) => r.start != null)
     .sort((a, b) => a.start - b.start),
 )
 
-// Fold state — projects & milestones both start collapsed; the user opens what
-// they want (empty "open" sets = everything closed).
+// Fold state — projects open by default (milestones visible); tasks collapsed.
+// The chart is remounted per unit (parent `:key`), so this default re-applies.
 const openP = ref(new Set())
 const openM = ref(new Set())
+let defaulted = false
+watch(
+  rows,
+  (rs) => {
+    if (defaulted || !rs.length) return
+    openP.value = new Set(rs.map((r) => r.id))
+    defaulted = true
+  },
+  { immediate: true },
+)
+
 function toggleP(id) {
   const next = new Set(openP.value)
   next.has(id) ? next.delete(id) : next.add(id)
@@ -214,6 +250,15 @@ function toggleM(key) {
 }
 const isPOpen = (id) => openP.value.has(id)
 const isMOpen = (key) => openM.value.has(key)
+
+function expandAll() {
+  openP.value = new Set(rows.value.map((r) => r.id))
+  openM.value = new Set(rows.value.flatMap((r) => r.milestones.map((m) => m.key)))
+}
+function collapseAll() {
+  openP.value = new Set()
+  openM.value = new Set()
+}
 
 // Flattened, currently-visible rows (respecting folds) — one source of truth for
 // both the label column and the timeline so their rows line up.
@@ -305,43 +350,46 @@ const years = computed(() => {
   return out
 })
 
-function barTitle(r) {
-  return [
-    r.name,
-    `Awal: ${fmt(r.start)}`,
-    `Perkiraan selesai: ${fmt(r.expEnd)}`,
-    r.actEnd ? `Selesai: ${fmt(r.actEnd)}` : `Status: ${STATE_LABEL[r.state]}`,
-  ].join('\n')
-}
-function taskTitle(t) {
-  return [
-    t.title,
-    t.milestone ? `Milestone: ${t.milestone}` : null,
-    `Dikerjakan: ${t.assignee}`,
-    `Progres: ${t.progress}%`,
-    `${fmt(t.start)} → ${t.done ? fmt(t.done) : fmt(t.due)}`,
-  ]
-    .filter(Boolean)
-    .join('\n')
-}
 const STATE_LABEL = {
   active: 'Berjalan',
   done: 'Selesai',
   overdue: 'Terlambat',
   pending: 'Belum mulai',
 }
+
+function barTitle(r) {
+  return [
+    r.name,
+    `Status: ${STATE_LABEL[r.state]} · ${r.progress}%`,
+    `Awal: ${fmt(r.start)}`,
+    `Perkiraan selesai: ${fmt(r.expEnd)}`,
+    r.actEnd ? `Selesai: ${fmt(r.actEnd)}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+function taskTitle(t) {
+  return [
+    t.title,
+    t.milestone ? `Milestone: ${t.milestone}` : null,
+    `Status: ${STATE_LABEL[t.state]} · ${t.progress}%`,
+    `Dikerjakan: ${t.assignee}`,
+    `${fmt(t.start)} → ${t.done ? fmt(t.done) : fmt(t.due)}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
 </script>
 
 <template>
   <section class="gc" :class="bare ? '' : 'surface p-5'">
-    <!-- Header + legend -->
+    <!-- Title header (collapsible card only) -->
     <div
-      v-if="!bare || open"
+      v-if="!bare"
       class="flex flex-wrap items-center justify-between gap-3"
-      :class="open ? 'mb-4' : ''"
+      :class="open ? 'mb-3' : ''"
     >
       <button
-        v-if="!bare"
         type="button"
         class="flex min-w-0 items-start gap-2 text-left"
         :aria-expanded="open"
@@ -356,16 +404,6 @@ const STATE_LABEL = {
           <p class="text-caption mt-0.5">{{ subtitle }}</p>
         </div>
       </button>
-      <div v-if="open" class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-        <span class="flex items-center gap-1.5"><span class="gc-key gc-c-project" />Project</span>
-        <span class="flex items-center gap-1.5"
-          ><span class="gc-key gc-c-milestone" />Milestone</span
-        >
-        <span class="flex items-center gap-1.5"
-          ><span class="gc-key gc-c-task" />Task (isian = progres)</span
-        >
-        <span class="flex items-center gap-1.5"><span class="gc-key-today" />Hari ini</span>
-      </div>
     </div>
 
     <template v-if="open">
@@ -380,210 +418,297 @@ const STATE_LABEL = {
         Belum ada project untuk ditampilkan pada unit Anda.
       </div>
 
-      <!-- Chart -->
-      <div v-else class="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-        <div class="gc-grid min-w-[760px]">
-          <!-- Label column -->
-          <div class="gc-side">
-            <!-- corner header -->
-            <div class="gc-corner">
-              <span class="flex-1">Aktivitas</span>
-              <span class="w-14 text-right">Durasi</span>
-            </div>
-
-            <template v-for="row in visibleRows" :key="'s-' + row.key">
-              <!-- Project label -->
-              <div v-if="row.kind === 'project'" class="gc-row">
-                <button
-                  type="button"
-                  class="gc-toggle"
-                  :disabled="!row.p.milestones.length"
-                  @click="toggleP(row.p.id)"
-                >
-                  <ChevronDownIcon
-                    class="h-3 w-3 transition-transform"
-                    :class="isPOpen(row.p.id) ? '' : '-rotate-90'"
-                  />
-                </button>
-                <span class="gc-dot gc-dot-project" />
-                <LockClosedIcon v-if="row.p.locked" class="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <RouterLink
-                  :to="{ name: 'project-detail', params: { id: row.p.id } }"
-                  class="gc-name gc-name-project hover:text-primary-600 hover:underline"
-                  :title="row.p.name"
-                >
-                  {{ row.p.name }}
-                </RouterLink>
-                <span class="gc-dur">{{ durLabel(row.p.start, row.p.plannedEnd) }}</span>
-              </div>
-
-              <!-- Milestone label -->
-              <div v-else-if="row.kind === 'milestone'" class="gc-row">
-                <span class="gc-indent" style="width: 14px" />
-                <button
-                  type="button"
-                  class="gc-toggle"
-                  :disabled="!row.m.tasks.length"
-                  @click="toggleM(row.m.key)"
-                >
-                  <ChevronDownIcon
-                    class="h-3 w-3 transition-transform"
-                    :class="isMOpen(row.m.key) ? '' : '-rotate-90'"
-                  />
-                </button>
-                <span class="gc-dot gc-dot-milestone" />
-                <span class="gc-name gc-name-milestone" :title="row.m.name">{{ row.m.name }}</span>
-                <span class="gc-dur">{{
-                  row.m.hasBar ? durLabel(row.m.start, row.m.plannedEnd) : '—'
-                }}</span>
-              </div>
-
-              <!-- Task label -->
-              <div v-else class="gc-row">
-                <span class="gc-indent" style="width: 36px" />
-                <span class="gc-toggle gc-leaf" />
-                <span class="gc-dot gc-dot-task" />
-                <span class="gc-name gc-name-task" :title="row.t.title">{{ row.t.title }}</span>
-                <span class="gc-dur">{{ durLabel(row.t.barStart, row.t.barEnd) }}</span>
-              </div>
-            </template>
+      <template v-else>
+        <!-- Toolbar: expand/collapse + status legend -->
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="gc-ctl" @click="expandAll">
+              <ArrowsPointingOutIcon class="h-3.5 w-3.5" /> Perluas semua
+            </button>
+            <button type="button" class="gc-ctl" @click="collapseAll">
+              <ArrowsPointingInIcon class="h-3.5 w-3.5" /> Ciutkan semua
+            </button>
           </div>
+          <div class="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-slate-500">
+            <span class="flex items-center gap-1.5"><i class="gc-key gc-s-active" />Berjalan</span>
+            <span class="flex items-center gap-1.5"><i class="gc-key gc-s-done" />Selesai</span>
+            <span class="flex items-center gap-1.5"
+              ><i class="gc-key gc-s-overdue" />Terlambat</span
+            >
+            <span class="flex items-center gap-1.5"
+              ><i class="gc-key gc-s-pending" />Belum mulai</span
+            >
+            <span class="flex items-center gap-1.5"><i class="gc-key-today" />Hari ini</span>
+          </div>
+        </div>
 
-          <!-- Timeline column -->
-          <div class="gc-main">
-            <!-- axis header: year bands + month cells -->
-            <div class="gc-head">
-              <span
-                v-for="y in years"
-                :key="'y-' + y.year"
-                class="gc-year"
-                :style="{ left: y.left + '%', width: y.width + '%' }"
-              >
-                {{ y.year }}
-              </span>
-              <span
-                v-for="m in months"
-                :key="'mo-' + m.key"
-                class="gc-month"
-                :class="m.quarter ? 'gc-month-q' : ''"
-                :style="{ left: m.left + '%', width: m.width + '%' }"
-              >
-                {{ m.label }}
-              </span>
-            </div>
-
-            <!-- body -->
-            <div class="gc-body">
-              <!-- month gridlines -->
-              <div
-                v-for="m in months"
-                :key="'g-' + m.key"
-                class="gc-grid-line"
-                :class="m.quarter ? 'gc-grid-line-q' : ''"
-                :style="{ left: m.left + '%' }"
-              />
-              <!-- today line -->
-              <div v-if="todayVisible" class="gc-today" :style="{ left: todayLeft }">
-                <span class="gc-today-flag">Hari ini · {{ fmt(today, false) }}</span>
+        <!-- Chart -->
+        <div class="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <div class="gc-grid min-w-[760px]">
+            <!-- Label column -->
+            <div class="gc-side">
+              <!-- corner header -->
+              <div class="gc-corner">
+                <span class="flex-1">Aktivitas</span>
+                <span class="w-11 text-right">Progres</span>
+                <span class="w-12 text-right">Durasi</span>
               </div>
 
-              <!-- bar rows -->
-              <template v-for="row in visibleRows" :key="'t-' + row.key">
-                <!-- Project bar -->
-                <div v-if="row.kind === 'project'" class="gc-trow">
-                  <div
-                    class="gc-bar gc-bar-project"
-                    :style="seg(row.p.start, row.p.plannedEnd)"
-                    :title="barTitle(row.p)"
+              <template v-for="row in visibleRows" :key="'s-' + row.key">
+                <!-- Project label -->
+                <div v-if="row.kind === 'project'" class="gc-row gc-row-project">
+                  <button
+                    type="button"
+                    class="gc-toggle"
+                    :disabled="!row.p.milestones.length"
+                    @click="toggleP(row.p.id)"
                   >
-                    <span class="gc-bar-title">{{ row.p.name }}</span>
-                  </div>
+                    <ChevronDownIcon
+                      class="h-3 w-3 transition-transform"
+                      :class="isPOpen(row.p.id) ? '' : '-rotate-90'"
+                    />
+                  </button>
+                  <span class="gc-dot gc-dot-project" :class="'gc-s-' + row.p.state" />
+                  <LockClosedIcon v-if="row.p.locked" class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <RouterLink
+                    :to="{ name: 'project-detail', params: { id: row.p.id } }"
+                    class="gc-name gc-name-project hover:text-primary-600 hover:underline"
+                    :title="row.p.name"
+                  >
+                    {{ row.p.name }}
+                  </RouterLink>
+                  <span class="gc-pct" :class="'gc-t-' + row.p.state">{{ row.p.progress }}%</span>
+                  <span class="gc-dur">{{ durLabel(row.p.start, row.p.plannedEnd) }}</span>
                 </div>
 
-                <!-- Milestone bar -->
-                <div v-else-if="row.kind === 'milestone'" class="gc-trow">
-                  <div
-                    v-if="row.m.hasBar"
-                    class="gc-bar gc-bar-milestone"
-                    :style="seg(row.m.start, row.m.plannedEnd)"
-                    :title="barTitle(row.m)"
+                <!-- Milestone label -->
+                <div v-else-if="row.kind === 'milestone'" class="gc-row">
+                  <span class="gc-indent" style="width: 14px" />
+                  <button
+                    type="button"
+                    class="gc-toggle"
+                    :disabled="!row.m.tasks.length"
+                    @click="toggleM(row.m.key)"
                   >
-                    <span class="gc-bar-title">{{ row.m.name }}</span>
-                  </div>
+                    <ChevronDownIcon
+                      class="h-3 w-3 transition-transform"
+                      :class="isMOpen(row.m.key) ? '' : '-rotate-90'"
+                    />
+                  </button>
+                  <span class="gc-dot gc-dot-milestone" :class="'gc-s-' + row.m.state" />
+                  <span class="gc-name gc-name-milestone" :title="row.m.name">{{
+                    row.m.name
+                  }}</span>
+                  <span class="gc-pct" :class="'gc-t-' + row.m.state">{{ row.m.progress }}%</span>
+                  <span class="gc-dur">{{
+                    row.m.hasBar ? durLabel(row.m.start, row.m.plannedEnd) : '—'
+                  }}</span>
                 </div>
 
-                <!-- Task bar -->
-                <div v-else class="gc-trow">
-                  <div
-                    class="gc-bar gc-bar-task"
-                    :class="row.t.overdue ? 'gc-bar-task-late' : ''"
-                    :style="seg(row.t.barStart, row.t.plannedEnd)"
-                    :title="taskTitle(row.t)"
-                  >
-                    <span class="gc-fill" :style="{ width: row.t.progress + '%' }" />
-                  </div>
-                  <span class="gc-task-cap" :style="{ left: pct(row.t.barEnd) + '%' }">
-                    <b :class="row.t.overdue ? 'gc-late' : ''">{{ row.t.progress }}%</b>
-                    <span v-if="row.t.hasAssignee" class="gc-who"> · {{ row.t.assignee }}</span>
-                  </span>
+                <!-- Task label -->
+                <div v-else class="gc-row">
+                  <span class="gc-indent" style="width: 36px" />
+                  <span class="gc-toggle gc-leaf" />
+                  <span class="gc-dot gc-dot-task" :class="'gc-s-' + row.t.state" />
+                  <span class="gc-name gc-name-task" :title="row.t.title">{{ row.t.title }}</span>
+                  <span class="gc-pct" :class="'gc-t-' + row.t.state">{{ row.t.progress }}%</span>
+                  <span class="gc-dur">{{ durLabel(row.t.barStart, row.t.barEnd) }}</span>
                 </div>
               </template>
             </div>
+
+            <!-- Timeline column -->
+            <div class="gc-main">
+              <!-- axis header: year bands + month cells -->
+              <div class="gc-head">
+                <span
+                  v-for="y in years"
+                  :key="'y-' + y.year"
+                  class="gc-year"
+                  :style="{ left: y.left + '%', width: y.width + '%' }"
+                >
+                  {{ y.year }}
+                </span>
+                <span
+                  v-for="m in months"
+                  :key="'mo-' + m.key"
+                  class="gc-month"
+                  :class="m.quarter ? 'gc-month-q' : ''"
+                  :style="{ left: m.left + '%', width: m.width + '%' }"
+                >
+                  {{ m.label }}
+                </span>
+              </div>
+
+              <!-- body -->
+              <div class="gc-body">
+                <!-- month gridlines -->
+                <div
+                  v-for="m in months"
+                  :key="'g-' + m.key"
+                  class="gc-grid-line"
+                  :class="m.quarter ? 'gc-grid-line-q' : ''"
+                  :style="{ left: m.left + '%' }"
+                />
+                <!-- today line -->
+                <div v-if="todayVisible" class="gc-today" :style="{ left: todayLeft }">
+                  <span class="gc-today-flag">Hari ini · {{ fmt(today, false) }}</span>
+                </div>
+
+                <!-- bar rows -->
+                <template v-for="row in visibleRows" :key="'t-' + row.key">
+                  <!-- Project bar -->
+                  <div v-if="row.kind === 'project'" class="gc-trow gc-trow-project">
+                    <div
+                      class="gc-bar gc-bar-project"
+                      :class="'gc-s-' + row.p.state"
+                      :style="seg(row.p.start, row.p.plannedEnd)"
+                      :title="barTitle(row.p)"
+                    >
+                      <span class="gc-fill" :style="{ width: row.p.progress + '%' }" />
+                    </div>
+                    <span class="gc-cap" :style="{ left: pct(row.p.plannedEnd) + '%' }">
+                      <b :class="'gc-t-' + row.p.state">{{ row.p.progress }}%</b>
+                    </span>
+                  </div>
+
+                  <!-- Milestone bar -->
+                  <div v-else-if="row.kind === 'milestone'" class="gc-trow">
+                    <template v-if="row.m.hasBar">
+                      <div
+                        class="gc-bar gc-bar-milestone"
+                        :class="'gc-s-' + row.m.state"
+                        :style="seg(row.m.start, row.m.plannedEnd)"
+                        :title="barTitle(row.m)"
+                      >
+                        <span class="gc-fill" :style="{ width: row.m.progress + '%' }" />
+                      </div>
+                      <span class="gc-cap" :style="{ left: pct(row.m.plannedEnd) + '%' }">
+                        <b :class="'gc-t-' + row.m.state">{{ row.m.progress }}%</b>
+                      </span>
+                    </template>
+                  </div>
+
+                  <!-- Task bar -->
+                  <div v-else class="gc-trow">
+                    <div
+                      class="gc-bar gc-bar-task"
+                      :class="'gc-s-' + row.t.state"
+                      :style="seg(row.t.barStart, row.t.plannedEnd)"
+                      :title="taskTitle(row.t)"
+                    >
+                      <span class="gc-fill" :style="{ width: row.t.progress + '%' }" />
+                    </div>
+                    <span class="gc-cap" :style="{ left: pct(row.t.plannedEnd) + '%' }">
+                      <b :class="'gc-t-' + row.t.state">{{ row.t.progress }}%</b>
+                      <span v-if="row.t.hasAssignee" class="gc-who"> · {{ row.t.assignee }}</span>
+                    </span>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
     </template>
   </section>
 </template>
 
 <style scoped>
 .gc {
-  --gc-project: #33507c;
-  --gc-milestone: #c6842e;
-  --gc-task: #3e8a76;
-  --gc-task-soft: #e2efea;
-  --gc-task-fill: #2c6b5b;
-  --gc-late: #c0483b;
-  --gc-line: #eae5da;
-  --gc-line-strong: #d8d1c2;
-  --gc-ink-soft: #5b6570;
-  --gc-ink-faint: #8a93a0;
-  --gc-row: 44px;
+  /* Status palette (brand-aligned): color encodes state, not hierarchy. */
+  --st-active: #3b82f6;
+  --st-active-soft: #dbeafe;
+  --st-done: #22c55e;
+  --st-done-soft: #dcfce7;
+  --st-overdue: #ef4444;
+  --st-overdue-soft: #fee2e2;
+  --st-pending: #94a3b8;
+  --st-pending-soft: #eef2f6;
+  --gc-accent: #653ef1; /* brand — reserved for the "today" now-line */
+
+  --gc-line: #eef2f6;
+  --gc-line-strong: #dbe1ea;
+  --gc-ink: #1e293b;
+  --gc-ink-soft: #475569;
+  --gc-ink-faint: #94a3b8;
+  --gc-band: #f8fafc;
+  --gc-row: 42px;
   --gc-head: 46px;
-  --gc-side: 280px;
+  --gc-side: 300px;
+}
+
+/* Status → color mapping (applied to bar, fill, dot, text, legend key). */
+.gc-s-active {
+  --c: var(--st-active);
+  --cs: var(--st-active-soft);
+}
+.gc-s-done {
+  --c: var(--st-done);
+  --cs: var(--st-done-soft);
+}
+.gc-s-overdue {
+  --c: var(--st-overdue);
+  --cs: var(--st-overdue-soft);
+}
+.gc-s-pending {
+  --c: var(--st-pending);
+  --cs: var(--st-pending-soft);
+}
+.gc-t-active {
+  color: var(--st-active);
+}
+.gc-t-done {
+  color: var(--st-done);
+}
+.gc-t-overdue {
+  color: var(--st-overdue);
+}
+.gc-t-pending {
+  color: var(--gc-ink-faint);
 }
 
 /* legend keys */
 .gc-key {
-  width: 22px;
-  height: 11px;
+  width: 20px;
+  height: 10px;
   border-radius: 3px;
   display: inline-block;
-}
-.gc-c-project {
-  background: var(--gc-project);
-}
-.gc-c-milestone {
-  background: var(--gc-milestone);
-}
-.gc-c-task {
-  background: var(--gc-task-soft);
-  border: 1px solid var(--gc-task);
+  background: var(--cs);
+  border: 1px solid var(--c);
   position: relative;
   overflow: hidden;
 }
-.gc-c-task::after {
+.gc-key::after {
   content: '';
   position: absolute;
   inset: 0;
-  width: 55%;
-  background: var(--gc-task);
+  width: 60%;
+  background: var(--c);
 }
 .gc-key-today {
   width: 0;
-  height: 14px;
-  border-left: 2px dashed var(--gc-late);
+  height: 13px;
+  border-left: 2px dashed var(--gc-accent);
   display: inline-block;
+}
+
+/* toolbar controls */
+.gc-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gc-ink-soft);
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--gc-line-strong);
+  background: #fff;
+  transition: background 0.12s;
+}
+.gc-ctl:hover {
+  background: var(--gc-band);
 }
 
 /* grid: sidebar + timeline */
@@ -606,7 +731,7 @@ const STATE_LABEL = {
   gap: 6px;
   padding: 0 12px 8px;
   border-bottom: 1px solid var(--gc-line-strong);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--gc-ink-faint);
@@ -622,7 +747,10 @@ const STATE_LABEL = {
   border-bottom: 1px solid var(--gc-line);
 }
 .gc-row:hover {
-  background: #fbf9f4;
+  background: var(--gc-band);
+}
+.gc-row-project {
+  background: #fcfcfe;
 }
 .gc-indent {
   flex: 0 0 auto;
@@ -639,7 +767,7 @@ const STATE_LABEL = {
   background: transparent;
 }
 .gc-toggle:hover:not(:disabled) {
-  background: var(--gc-line);
+  background: var(--gc-line-strong);
   color: var(--gc-ink-soft);
 }
 .gc-toggle:disabled {
@@ -650,23 +778,24 @@ const STATE_LABEL = {
   visibility: hidden;
 }
 .gc-dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   flex: 0 0 auto;
+  background: var(--c);
 }
 .gc-dot-project {
-  background: var(--gc-project);
   border-radius: 2px;
 }
 .gc-dot-milestone {
-  background: var(--gc-milestone);
   border-radius: 1px;
   transform: rotate(45deg);
+  width: 9px;
+  height: 9px;
 }
 .gc-dot-task {
-  border: 2px solid var(--gc-task);
   border-radius: 50%;
-  background: transparent;
+  background: #fff;
+  border: 2px solid var(--c);
 }
 .gc-name {
   flex: 1;
@@ -679,17 +808,26 @@ const STATE_LABEL = {
 .gc-name-project {
   font-weight: 600;
   font-size: 13.5px;
-  color: #1f2937;
+  color: var(--gc-ink);
 }
 .gc-name-milestone {
   font-weight: 500;
-  color: #334155;
+  color: var(--gc-ink-soft);
 }
 .gc-name-task {
   color: var(--gc-ink-soft);
+  font-size: 12.5px;
+}
+.gc-pct {
+  width: 2.75rem;
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .gc-dur {
-  width: 3.5rem;
+  width: 3rem;
   flex: 0 0 auto;
   text-align: right;
   font-size: 11px;
@@ -712,10 +850,10 @@ const STATE_LABEL = {
   align-items: center;
   padding-left: 8px;
   border-right: 1px solid var(--gc-line-strong);
-  background: #fbf9f4;
+  background: var(--gc-band);
   font-size: 12px;
   font-weight: 600;
-  color: #334155;
+  color: var(--gc-ink-soft);
 }
 .gc-month {
   position: absolute;
@@ -752,7 +890,7 @@ const STATE_LABEL = {
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 2px dashed var(--gc-late);
+  border-left: 2px dashed var(--gc-accent);
   z-index: 5;
   pointer-events: none;
 }
@@ -760,7 +898,7 @@ const STATE_LABEL = {
   position: absolute;
   top: 2px;
   transform: translateX(-50%);
-  background: var(--gc-late);
+  background: var(--gc-accent);
   color: #fff;
   font-size: 9.5px;
   font-weight: 600;
@@ -775,70 +913,62 @@ const STATE_LABEL = {
   border-bottom: 1px solid var(--gc-line);
   z-index: 1;
 }
+.gc-trow-project {
+  background: #fcfcfe;
+}
+
+/* unified bar: soft status track + solid fill (=progress) */
 .gc-bar {
   position: absolute;
-  top: 10px;
-  height: 24px;
-  min-width: 8px;
+  min-width: 6px;
+  background: var(--cs);
+  border: 1px solid var(--c);
   border-radius: 6px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 1px 2px rgba(35, 39, 46, 0.12);
+  overflow: hidden;
 }
 .gc-bar-project {
-  background: var(--gc-project);
+  top: 9px;
+  height: 24px;
+  box-shadow: 0 1px 2px rgba(30, 41, 59, 0.1);
 }
 .gc-bar-milestone {
-  background: var(--gc-milestone);
-}
-.gc-bar-title {
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 0 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  top: 12px;
+  height: 18px;
 }
 .gc-bar-task {
-  background: var(--gc-task-soft);
-  border: 1px solid var(--gc-task);
-  overflow: hidden;
-}
-.gc-bar-task-late {
-  background: #f7e4e1;
-  border-color: var(--gc-late);
+  top: 14px;
+  height: 14px;
+  border-radius: 5px;
 }
 .gc-fill {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: var(--gc-task);
-  opacity: 0.9;
+  background: var(--c);
+  transition: width 0.3s ease;
 }
-.gc-bar-task-late .gc-fill {
-  background: var(--gc-late);
-}
-.gc-task-cap {
+
+/* progress / assignee caption to the right of the bar */
+.gc-cap {
   position: absolute;
-  top: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   padding-left: 8px;
   font-size: 11px;
   color: var(--gc-ink-faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.gc-task-cap b {
-  color: var(--gc-task-fill);
+.gc-cap b {
   font-weight: 600;
 }
-.gc-task-cap .gc-who {
+.gc-cap .gc-who {
   color: var(--gc-ink-faint);
-}
-.gc-late {
-  color: var(--gc-late) !important;
+  font-weight: 400;
 }
 </style>

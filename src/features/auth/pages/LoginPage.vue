@@ -38,6 +38,9 @@ async function onSubmit() {
       },
     })
     success(`Welcome back, ${profile.name.split(' ')[0]}!`)
+    // Register this browser for push notifications — fire-and-forget so the
+    // permission prompt / network call never delays navigation. Push is optional.
+    auth.registerDevice()
     router.push(route.query.redirect || { name: 'dashboard' })
   } catch (err) {
     error(err.message)
@@ -57,7 +60,9 @@ function notAvailable() {
   <AuthLayout>
     <!-- Logo -->
     <div class="mb-6 flex items-center justify-center gap-2">
-      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-glow">
+      <div
+        class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-glow"
+      >
         <CubeIcon class="h-5 w-5" />
       </div>
     </div>

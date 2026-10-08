@@ -48,6 +48,24 @@ export const LOGIN = gql`
   }
 `
 
+/**
+ * Register (or refresh) the current browser as a push-notification device after
+ * sign-in. Variables: { input: RegisDeviceInput! } ({ appName, fcmToken,
+ * notificationEnabled, platform }). `fcmToken` may be null when the browser
+ * can't produce one. Response shape: data.registerDevice.data.{ id, fcmToken, appName }.
+ */
+export const REGISTER_DEVICE = gql`
+  mutation RegisterDevice($input: RegisDeviceInput!) {
+    registerDevice(input: $input) {
+      data {
+        id
+        fcmToken
+        appName
+      }
+    }
+  }
+`
+
 export const LOGOUT = gql`
   mutation Logout {
     logout {

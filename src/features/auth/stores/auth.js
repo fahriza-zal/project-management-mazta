@@ -1,7 +1,10 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apolloClient } from '@/shared/graphql/apolloClient'
-import { LOGIN, LOGOUT, CHANGE_PASSWORD } from '@/features/auth/graphql'
+import { LOGIN, LOGOUT, CHANGE_PASSWORD, REGISTER_DEVICE } from '@/features/auth/graphql'
+import { getFcmToken } from '@/shared/firebase/messaging'
+
+const APP_NAME = 'Project Management'
 
 const TOKEN_KEY = 'pm_token'
 const PROFILE_KEY = 'pm_profile'
@@ -96,6 +99,36 @@ export const useAuthStore = defineStore('auth', () => {
     employee.value = data.employee
     persist()
     return profile.value
+  }
+
+  /**
+   * Register this browser for push notifications. Best-effort and fire-and-forget:
+   * push is optional, so a missing token (unsupported browser or declined
+   * permission) or any error is swallowed and never blocks sign-in. When the user
+   * denies permission `getFcmToken()` resolves null and we skip the mutation
+   * entirely. Must run after `login()` has persisted the token (the Apollo auth
+   * link reads it from storage).
+   */
+  async function registerDevice() {
+    try {
+      const fcmToken = await getFcmToken()
+      if (!fcmToken) return null // unsupported / permission denied → skip
+      const result = await apolloClient.mutate({
+        mutation: REGISTER_DEVICE,
+        variables: {
+          input: {
+            appName: APP_NAME,
+            fcmToken,
+            notificationEnabled: true,
+            platform: 'WEB',
+          },
+        },
+        fetchPolicy: 'no-cache',
+      })
+      return result?.data?.registerDevice?.data || null
+    } catch {
+      return null
+    }
   }
 
   /** Restore session from localStorage (called by the router guard). */
@@ -208,6 +241,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     can,
     login,
+    registerDevice,
     hydrate,
     logout,
     clearSession,

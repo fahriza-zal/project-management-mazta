@@ -1,8 +1,11 @@
 <script setup>
+import { onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, RouterView } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { useUiStore } from '@/shared/stores/ui'
+import { useToast } from '@/shared/composables/useToast'
+import { onForegroundMessage } from '@/shared/firebase/messaging'
 import Sidebar from '@/shared/components/layout/Sidebar.vue'
 import Navbar from '@/shared/components/layout/Navbar.vue'
 import Footer from '@/shared/components/layout/Footer.vue'
@@ -10,7 +13,20 @@ import Footer from '@/shared/components/layout/Footer.vue'
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { info } = useToast()
 const { mobileSidebarOpen } = storeToRefs(ui)
+
+// Show push messages that arrive while the app is open as an in-app toast — the
+// service worker only handles them when the tab is backgrounded. No-op when FCM
+// is unavailable. `unsubscribe` resolves async, so guard the cleanup call.
+let unsubscribe = null
+onMounted(async () => {
+  unsubscribe = await onForegroundMessage((payload) => {
+    const { title, body } = payload.notification || {}
+    if (title) info(body ? `${title} — ${body}` : title)
+  })
+})
+onBeforeUnmount(() => unsubscribe?.())
 
 function logout() {
   auth.logout()
@@ -39,7 +55,11 @@ function logout() {
       leave-active-class="transition-opacity duration-150"
       leave-to-class="opacity-0"
     >
-      <div v-if="mobileSidebarOpen" class="fixed inset-0 z-40 bg-slate-900/40 lg:hidden" @click="ui.closeMobileSidebar()" />
+      <div
+        v-if="mobileSidebarOpen"
+        class="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+        @click="ui.closeMobileSidebar()"
+      />
     </Transition>
     <Transition
       enter-active-class="transition-transform duration-200"

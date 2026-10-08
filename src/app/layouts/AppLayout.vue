@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/features/auth/stores/auth'
 import { useUiStore } from '@/shared/stores/ui'
 import { useToast } from '@/shared/composables/useToast'
+import { useNotificationStore } from '@/shared/stores/notifications'
 import { onForegroundMessage } from '@/shared/firebase/messaging'
 import Sidebar from '@/shared/components/layout/Sidebar.vue'
 import Navbar from '@/shared/components/layout/Navbar.vue'
@@ -14,16 +15,20 @@ const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
 const { info } = useToast()
+const notifications = useNotificationStore()
 const { mobileSidebarOpen } = storeToRefs(ui)
 
-// Show push messages that arrive while the app is open as an in-app toast — the
-// service worker only handles them when the tab is backgrounded. No-op when FCM
-// is unavailable. `unsubscribe` resolves async, so guard the cleanup call.
+// Push messages that arrive while the app is open don't hit the service worker,
+// so the app handles them itself: add to the notification center (navbar bell)
+// and surface a quick toast. No-op when FCM is unavailable. `unsubscribe`
+// resolves async, so guard the cleanup call.
 let unsubscribe = null
 onMounted(async () => {
   unsubscribe = await onForegroundMessage((payload) => {
     const { title, body } = payload.notification || {}
-    if (title) info(body ? `${title} — ${body}` : title)
+    if (!title) return
+    notifications.add({ title, body, data: payload.data || {} })
+    info(body ? `${title} — ${body}` : title)
   })
 })
 onBeforeUnmount(() => unsubscribe?.())

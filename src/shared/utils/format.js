@@ -31,6 +31,26 @@ export function fromNow(value) {
   return `${Math.abs(days)} days ago`
 }
 
+/**
+ * Compact "time since" label for recent timestamps, e.g. "Baru saja", "5 mnt",
+ * "3 jam", "2 hr". Suited to notification lists (minute/hour granularity), unlike
+ * `fromNow` which rounds to whole days.
+ */
+export function timeAgo(value) {
+  if (!value) return ''
+  const diff = Date.now() - new Date(value).getTime()
+  if (Number.isNaN(diff)) return ''
+  const sec = Math.round(diff / 1000)
+  if (sec < 60) return 'Baru saja'
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${min} mnt`
+  const hr = Math.round(min / 60)
+  if (hr < 24) return `${hr} jam`
+  const days = Math.round(hr / 24)
+  if (days < 7) return `${days} hr`
+  return formatDateShort(value)
+}
+
 /** True when a due date is in the past. */
 export function isOverdue(value) {
   if (!value) return false

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useProjectStore } from '@/features/projects/stores/project'
 import { useTaskStatusStore } from '@/features/task-status/stores/taskStatus'
 import { useAuthStore } from '@/features/auth/stores/auth'
@@ -18,6 +18,7 @@ import TaskComments from '@/features/projects/components/TaskComments.vue'
 import AttachmentUploader from '@/features/projects/components/AttachmentUploader.vue'
 
 const route = useRoute()
+const router = useRouter()
 const projectStore = useProjectStore()
 const taskStatusStore = useTaskStatusStore()
 const auth = useAuthStore()
@@ -88,6 +89,22 @@ const detailTask = computed(() => tasks.value.find((t) => t.id === detailTaskId.
 function onOpenTask(task) {
   detailTaskId.value = task.id
   detailOpen.value = true
+}
+
+/**
+ * Deep-link from a notification (`?task=<id>`): open that task's detail modal
+ * once the board has loaded, then strip the param so closing or reloading the
+ * page doesn't reopen it. Silently no-ops if the task isn't on the board (e.g.
+ * it has no assignment, so it isn't shown).
+ */
+function openTaskFromQuery() {
+  const q = route.query.task
+  if (!q) return
+  const task = tasks.value.find((t) => String(t.id) === String(q))
+  if (task) onOpenTask(task)
+  const query = { ...route.query }
+  delete query.task
+  router.replace({ query })
 }
 
 /** Refetch so any change (new comment, file, …) shows up on the card. */
@@ -164,6 +181,7 @@ onMounted(async () => {
     columns.value = [...(statuses ?? [])]
       .sort((a, b) => (a.ordering ?? 0) - (b.ordering ?? 0))
       .map((s, i) => ({ id: s.id, name: s.name, accent: ACCENTS[i % ACCENTS.length] }))
+    openTaskFromQuery()
   } catch (err) {
     toastError(err.message)
   } finally {

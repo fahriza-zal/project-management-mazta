@@ -1,0 +1,48 @@
+# Dependencies & build output (di-generate ulang di dalam image)
+node_modules
+dist
+dist-ssr
+coverage
+
+# Git & CI
+.git
+.gitignore
+.gitattributes
+.github
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Cache
+.eslintcache
+*.tsbuildinfo
+
+# Env lokal — TIDAK dibutuhkan saat build: API_GATEWAY & VITE_* sudah di-bake
+# via ARG/ENV di Dockerfile. Dikecualikan agar tidak masuk build context.
+.env
+.env.*
+
+# Docker sendiri
+Dockerfile
+.dockerignore
+
+# Dokumentasi & tooling Claude (tidak dibutuhkan saat build)
+.claude
+CLAUDE.md
+.docs
+README.md

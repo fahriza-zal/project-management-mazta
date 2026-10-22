@@ -13,6 +13,7 @@ export const PERM = {
   DELETE: 'deleteProject',
   LOCK: 'lockProject',
   UNLOCK: 'unlockProject',
+  RECALCULATE: 'recalculateProject',
   // Task
   CREATE_TASK: 'createTask',
   EDIT_TASK: 'editTask',

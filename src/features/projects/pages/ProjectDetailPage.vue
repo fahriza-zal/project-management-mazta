@@ -311,6 +311,24 @@ async function onStatusUpdated() {
   }
 }
 
+// ── Recalculate project achievement/progress ─────────────────────────────────
+const recalculating = ref(false)
+
+/** Ask the backend to recompute the project's metric, then refresh the view. */
+async function recalculate() {
+  if (recalculating.value) return
+  recalculating.value = true
+  try {
+    await projectStore.recalculateProject(route.params.id)
+    await loadProject()
+    success('Pencapaian project berhasil dihitung ulang.')
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    recalculating.value = false
+  }
+}
+
 // ── Lock / unlock task (with confirmation) ───────────────────────────────────
 const lockState = ref({ open: false, task: null, loading: false })
 
@@ -419,6 +437,16 @@ onMounted(async () => {
           <BaseButton class="flex-1 sm:flex-none" variant="outline" @click="goToBoard">
             <ViewColumnsIcon class="h-4 w-4" />
             Board
+          </BaseButton>
+          <BaseButton
+            v-if="auth.can(PERM.RECALCULATE)"
+            class="flex-1 sm:flex-none"
+            variant="outline"
+            :loading="recalculating"
+            @click="recalculate"
+          >
+            <ArrowPathIcon v-if="!recalculating" class="h-4 w-4" />
+            Hitung Ulang
           </BaseButton>
           <BaseButton
             v-if="auth.can(PERM.UPDATE_STATUS)"

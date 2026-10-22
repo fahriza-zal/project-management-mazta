@@ -697,6 +697,19 @@ export const UNLOCK_TASK = gql`
 `
 
 /**
+ * Recalculate a project's achievement/progress (rolls up its milestones & tasks).
+ * Returns `StrObjectResponse` — `data` is a plain String message from the backend.
+ * Variables: { recalculateProjectId: Int! }.
+ */
+export const RECALCULATE_PROJECT = gql`
+  mutation RecalculateProject($recalculateProjectId: Int!) {
+    recalculateProject(id: $recalculateProjectId) {
+      data
+    }
+  }
+`
+
+/**
  * Searchable unit list — source for the `units[].unitId` picker on Create Project.
  * Variables: { params: UnitParams } — { page, pageSize, search }. Returns { id, name }.
  */

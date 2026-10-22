@@ -25,6 +25,7 @@ import {
   UNLOCK_PROJECT,
   LOCK_TASK,
   UNLOCK_TASK,
+  RECALCULATE_PROJECT,
   LIST_UNIT,
   LIST_PROJECT_ROLE,
   LIST_EMPLOYEE,
@@ -404,13 +405,26 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   /**
-   * Searchable employee options for the task-assignee picker. The picker expects
-   * `{ id, name }`, so `fullName` is mapped to `name`. Returns [{ id, name }].
+   * Searchable employee options. The picker expects `{ id, name }`, so `fullName`
+   * is mapped to `name`. Returns [{ id, name }].
+   *
+   * `unitIds` scopes the list to the given units (used by the comment @-mention so
+   * only employees from the signed-in user's division/units show up). Omit/empty →
+   * unscoped (the assignee picker calls it with just `search`).
+   * @param {string} search
+   * @param {{ unitIds?: number[] }} [opts]
    */
-  async function fetchEmployeeOptions(search) {
+  async function fetchEmployeeOptions(search, { unitIds = null } = {}) {
     const { data } = await apolloClient.query({
       query: LIST_EMPLOYEE,
-      variables: { params: { page: 1, pageSize: PICKER_PAGE_SIZE, search: search || null } },
+      variables: {
+        params: {
+          page: 1,
+          pageSize: PICKER_PAGE_SIZE,
+          search: search || null,
+          unitIds: unitIds?.length ? unitIds.map(Number) : null,
+        },
+      },
       fetchPolicy: 'network-only',
     })
     return (data?.listEmployee?.data?.results ?? []).map((e) => ({ id: e.id, name: e.fullName }))
@@ -555,6 +569,25 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   /**
+   * Recalculate a project's achievement/progress (backend rolls up milestones &
+   * tasks). Returns the backend's status string. Callers should refetch the
+   * project afterwards to pick up the new metric/progress values.
+   * @param {number|string} id
+   * @returns {Promise<string|null>}
+   */
+  async function recalculateProject(id) {
+    try {
+      const { data } = await apolloClient.mutate({
+        mutation: RECALCULATE_PROJECT,
+        variables: { recalculateProjectId: Number(id) },
+      })
+      return data?.recalculateProject?.data ?? null
+    } catch (err) {
+      throw new Error(toMessage(err, 'Gagal menghitung ulang pencapaian project.'))
+    }
+  }
+
+  /**
    * Fetch choice options for an enum group via `employeeChoices(group)`. Returns
    * string[] of the values the backend accepts on write. The field returns
    * `[{ label, value }]` where `label` is the canonical enum the mutations expect
@@ -606,6 +639,7 @@ export const useProjectStore = defineStore('project', () => {
     unlockProject,
     lockTask,
     unlockTask,
+    recalculateProject,
     fetchChoices,
   }
 })
